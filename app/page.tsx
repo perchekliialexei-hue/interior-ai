@@ -1,65 +1,226 @@
-import Image from "next/image";
+'use client';
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { ArrowRight, Sparkles, Box, ShoppingBag } from 'lucide-react';
 
 export default function Home() {
+  const [showForm, setShowForm] = useState(false);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <main className="min-h-screen bg-[#0a0a0a] text-white">
+
+      {/* Навигация */}
+      <nav className="flex justify-between items-center px-8 py-6 border-b border-white/10">
+        <div className="text-xl font-bold tracking-tight">
+          Interior<span className="text-violet-400">AI</span>
+        </div>
+        <button
+          onClick={() => setShowForm(true)}
+          className="bg-violet-600 hover:bg-violet-500 transition px-5 py-2 rounded-full text-sm font-medium"
+        >
+          Заказать дизайн
+        </button>
+      </nav>
+
+      {/* Герой-секция */}
+      <section className="max-w-5xl mx-auto px-8 pt-24 pb-16 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7 }}
+        >
+          <span className="inline-block bg-violet-500/10 text-violet-400 text-sm px-4 py-1 rounded-full mb-6 border border-violet-500/20">
+            AI + Интерактивный 3D
+          </span>
+          <h1 className="text-5xl md:text-7xl font-bold leading-tight mb-6">
+            Твоя комната —{' '}
+            <span className="text-violet-400">Pinterest level</span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-10">
+            Присылаешь фото комнаты — получаешь интерактивный 3D-концепт 
+            который можно покрутить и рассмотреть со всех сторон. За 48 часов.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => setShowForm(true)}
+            className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-500 transition px-8 py-4 rounded-full text-lg font-semibold"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Получить концепт <ArrowRight size={20} />
+          </button>
+        </motion.div>
+      </section>
+
+      {/* Три фишки */}
+      <section className="max-w-5xl mx-auto px-8 py-16 grid md:grid-cols-3 gap-6">
+        {[
+          {
+            icon: <Sparkles className="text-violet-400" size={28} />,
+            title: 'AI-референсы',
+            desc: 'Подбираем стили под твои предпочтения — видишь что получится до начала работы',
+          },
+          {
+            icon: <Box className="text-violet-400" size={28} />,
+            title: 'Интерактивный 3D',
+            desc: 'Готовую комнату можно крутить, смотреть с разных углов прямо в браузере',
+          },
+          {
+            icon: <ShoppingBag className="text-violet-400" size={28} />,
+            title: 'Список покупок',
+            desc: 'Каждый предмет мебели — с ценой и ссылкой где купить',
+          },
+        ].map((item, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 * i, duration: 0.5 }}
+            className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-violet-500/40 transition"
           >
-            Documentation
-          </a>
+            <div className="mb-4">{item.icon}</div>
+            <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
+            <p className="text-gray-400 text-sm leading-relaxed">{item.desc}</p>
+          </motion.div>
+        ))}
+      </section>
+
+      {/* Цены */}
+      <section className="max-w-5xl mx-auto px-8 py-16">
+        <h2 className="text-3xl font-bold text-center mb-12">Пакеты</h2>
+        <div className="grid md:grid-cols-3 gap-6">
+          {[
+            {
+              name: 'Starter',
+              price: '$35',
+              desc: '1 комната',
+              features: ['3 варианта дизайна', '2D-рендеры', 'Список мебели', 'Доставка 48ч'],
+              highlight: false,
+            },
+            {
+              name: 'Pro',
+              price: '$85',
+              desc: 'до 3 комнат',
+              features: ['5 вариантов', 'Интерактивный 3D', 'Мудборд', 'Список с ценами', '1 правка'],
+              highlight: true,
+            },
+            {
+              name: 'Business',
+              price: '$200+',
+              desc: 'кафе / офис',
+              features: ['Без ограничений', 'Полный 3D-тур', 'Презентация', 'Приоритет'],
+              highlight: false,
+            },
+          ].map((pkg, i) => (
+            <div
+              key={i}
+              className={`rounded-2xl p-6 border ${
+                pkg.highlight
+                  ? 'border-violet-500 bg-violet-500/10'
+                  : 'border-white/10 bg-white/5'
+              }`}
+            >
+              {pkg.highlight && (
+                <span className="text-xs bg-violet-500 px-3 py-1 rounded-full mb-4 inline-block">
+                  Популярный
+                </span>
+              )}
+              <div className="text-3xl font-bold mb-1">{pkg.price}</div>
+              <div className="text-sm text-gray-400 mb-4">{pkg.name} · {pkg.desc}</div>
+              <ul className="space-y-2 mb-6">
+                {pkg.features.map((f, j) => (
+                  <li key={j} className="text-sm text-gray-300 flex items-center gap-2">
+                    <span className="text-violet-400">✓</span> {f}
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => setShowForm(true)}
+                className={`w-full py-2 rounded-full text-sm font-medium transition ${
+                  pkg.highlight
+                    ? 'bg-violet-600 hover:bg-violet-500'
+                    : 'border border-white/20 hover:border-violet-400'
+                }`}
+              >
+                Выбрать
+              </button>
+            </div>
+          ))}
         </div>
-      </main>
-    </div>
+      </section>
+
+      {/* Модальная форма */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[#111] border border-white/10 rounded-2xl p-8 max-w-lg w-full"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">Заказать концепт</h2>
+              <button
+                onClick={() => setShowForm(false)}
+                className="text-gray-400 hover:text-white text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <form className="space-y-4">
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">Ваше имя</label>
+                <input
+                  type="text"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
+                  placeholder="Алексей"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">Email</label>
+                <input
+                  type="email"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
+                  placeholder="alex@email.com"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">Тип комнаты</label>
+                <select className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition">
+                  <option>Спальня</option>
+                  <option>Гостиная</option>
+                  <option>Кабинет / Home Office</option>
+                  <option>Gaming Room</option>
+                  <option>Кафе / Офис</option>
+                  <option>Другое</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">Стиль</label>
+                <select className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition">
+                  <option>Минимализм</option>
+                  <option>Скандинавский</option>
+                  <option>Cozy / Уютный</option>
+                  <option>Gaming Setup</option>
+                  <option>Индустриальный</option>
+                  <option>Не знаю — помогите выбрать</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">Пакет</label>
+                <select className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition">
+                  <option>Starter — $35</option>
+                  <option>Pro — $85</option>
+                  <option>Business — $200+</option>
+                </select>
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-violet-600 hover:bg-violet-500 transition py-3 rounded-full font-semibold mt-2"
+              >
+                Отправить заявку
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+    </main>
   );
 }
