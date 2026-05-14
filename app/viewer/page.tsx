@@ -258,7 +258,17 @@ export default function Viewer() {
             </div>
           ))}
         </div>
-      </div>
+      </div><div className="mt-8 text-center">
+  <p className="text-gray-400 text-sm mb-4">
+    Нравится этот стиль? Сделаем такой же для твоей комнаты
+  </p>
+  
+    <a href="/"
+    className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-500 transition px-8 py-3 rounded-full font-semibold"
+  >
+    Заказать свой концепт
+  </a>
+</div>
     </div>
   );
 }

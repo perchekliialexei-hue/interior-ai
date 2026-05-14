@@ -61,9 +61,13 @@ export default function Home() {
           >
             Получить концепт <ArrowRight size={20} />
           </button>
+          <a href="/viewer"
+          className="inline-flex items-center gap-2 border border-white/20 hover:border-violet-400 transition px-8 py-4 rounded-full text-lg font-semibold ml-4"
+          >
+          Посмотреть 3D демо →
+        </a>
         </motion.div>
       </section>
-
       <section className="max-w-5xl mx-auto px-8 py-16 grid md:grid-cols-3 gap-6">
         {[
           { icon: <Sparkles className="text-violet-400" size={28} />, title: 'AI-референсы', desc: 'Подбираем стили под твои предпочтения — видишь что получится до начала работы' },
@@ -84,7 +88,41 @@ export default function Home() {
         ))}
       </section>
 
-      <section className="max-w-5xl mx-auto px-8 py-16">
+      <section className="max-w-5xl mx-auto px-8 py-16"><section className="max-w-5xl mx-auto px-8 py-16">
+  <h2 className="text-3xl font-bold text-center mb-12">Как это работает</h2>
+  <div className="grid md:grid-cols-4 gap-6">
+    {[
+      { num: '01', title: 'Заполняешь анкету', desc: 'Рассказываешь о комнате, стиле и пожеланиях' },
+      { num: '02', title: 'Выбираешь референсы', desc: 'Показываем варианты — ты выбираешь что нравится' },
+      { num: '03', title: 'Получаешь 3D', desc: 'Готовый концепт который можно крутить в браузере' },
+      { num: '04', title: 'Покупаешь мебель', desc: 'Список всех предметов с ценами и ссылками' },
+    ].map((step, i) => (
+      <div key={i} className="text-center">
+        <div className="text-4xl font-bold text-violet-400/30 mb-3">{step.num}</div>
+        <h3 className="font-semibold mb-2">{step.title}</h3>
+        <p className="text-gray-400 text-sm leading-relaxed">{step.desc}</p>
+      </div>
+    ))}
+  </div>
+</section><section className="max-w-5xl mx-auto px-8 py-8">
+  <h2 className="text-3xl font-bold text-center mb-12">Что говорят клиенты</h2>
+  <div className="grid md:grid-cols-3 gap-6">
+    {[
+      { name: 'Анна, 24', room: 'Спальня · Минимализм', text: 'Не могла представить как будет выглядеть комната пока не увидела 3D. Заказала мебель точно по списку — всё встало идеально!', stars: 5 },
+      { name: 'Дмитрий, 28', room: 'Gaming Room', text: 'Крутой сервис. Получил 3D своей будущей комнаты за 2 дня. Мог крутить и смотреть со всех сторон. Стоит каждого цента.', stars: 5 },
+      { name: 'Кафе Bloom', room: 'Коммерческий проект', text: 'Показали концепт инвесторам ещё до ремонта. Очень помогло в презентации. Рекомендуем всем кто открывает заведение.', stars: 5 },
+    ].map((review, i) => (
+      <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-6">
+        <div className="text-yellow-400 text-sm mb-3">{'★'.repeat(review.stars)}</div>
+        <p className="text-gray-300 text-sm leading-relaxed mb-4">"{review.text}"</p>
+        <div>
+          <div className="font-medium text-sm">{review.name}</div>
+          <div className="text-gray-500 text-xs">{review.room}</div>
+        </div>
+      </div>
+    ))}
+  </div>
+</section>
         <h2 className="text-3xl font-bold text-center mb-12">Пакеты</h2>
         <div className="grid md:grid-cols-3 gap-6">
           {[
