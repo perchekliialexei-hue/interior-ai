@@ -2,28 +2,56 @@
 import { motion } from 'framer-motion';
 import { ArrowRight, Sparkles, Box, ShoppingBag } from 'lucide-react';
 import { useState, useCallback } from 'react';
-import { Upload } from 'lucide-react';
 
 export default function Home() {
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '', email: '', roomType: 'Спальня', style: 'Минимализм', packageType: 'Starter — $35', photos: [] as File[]
-  });
+const [formData, setFormData] = useState({
+  name: '', email: '', roomType: 'Спальня', style: 'Минимализм',
+  packageType: 'Starter — $35', photos: [] as File[],
+  length: '', width: '', height: '', wishes: ''
+});
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSending(true);
-    const res = await fetch('/api/order', {
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setSending(true);
+
+  try {
+    const aiRes = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({...formData, photoCount: formData.photos.length, photos: undefined}),
+      body: JSON.stringify({
+        roomType: formData.roomType,
+        style: formData.style,
+        width: formData.width || '4',
+        length: formData.length || '5',
+        height: formData.height || '2.7',
+        wishes: formData.wishes,
+      }),
     });
-    setSending(false);
-    if (res.ok) setSent(true);
-  };
 
+    const aiData = await aiRes.json();
+    const design = aiData.design;
+
+    await fetch('/api/order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...formData,
+        photoCount: formData.photos.length,
+        photos: undefined,
+        designPlan: design ? JSON.stringify(design, null, 2) : 'Не удалось сгенерировать',
+      }),
+    });
+
+    setSent(true);
+  } catch (error) {
+    console.error(error);
+  } finally {
+    setSending(false);
+  }
+};
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white">
 
@@ -154,11 +182,11 @@ export default function Home() {
       </section>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#111] border border-white/10 rounded-2xl p-8 max-w-lg w-full"
+            className="bg-[#111] border border-white/10 rounded-2xl p-8 max-w-lg w-full my-auto"
           >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold">Заказать концепт</h2>
@@ -224,7 +252,49 @@ export default function Home() {
                   <option>Кафе / Офис</option>
                   <option>Другое</option>
                 </select>
-              </div>
+              </div><div>
+  <label className="text-sm text-gray-400 block mb-1">Размеры комнаты</label>
+  <div className="grid grid-cols-3 gap-2">
+    <div>
+      <input
+        type="number"
+        placeholder="Длина (м)"
+        value={formData.length || ''}
+        onChange={e => setFormData({...formData, length: e.target.value})}
+        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
+      />
+    </div>
+    <div>
+      <input
+        type="number"
+        placeholder="Ширина (м)"
+        value={formData.width || ''}
+        onChange={e => setFormData({...formData, width: e.target.value})}
+        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
+      />
+    </div>
+    <div>
+      <input
+        type="number"
+        placeholder="Высота (м)"
+        value={formData.height || ''}
+        onChange={e => setFormData({...formData, height: e.target.value})}
+        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
+      />
+    </div>
+  </div>
+</div>
+
+<div>
+  <label className="text-sm text-gray-400 block mb-1">Пожелания (необязательно)</label>
+  <textarea
+    placeholder="Например: хочу много света, нужно рабочее место, есть кот..."
+    value={formData.wishes || ''}
+    onChange={e => setFormData({...formData, wishes: e.target.value})}
+    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition resize-none"
+    rows={3}
+  />
+</div>
               <div>
                 <label className="text-sm text-gray-400 block mb-1">Стиль</label>
                 <select
