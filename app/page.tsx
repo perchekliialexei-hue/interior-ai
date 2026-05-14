@@ -1,12 +1,13 @@
 'use client';
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Sparkles, Box, ShoppingBag } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { Upload } from 'lucide-react';
 
 export default function Home() {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
-    name: '', email: '', roomType: 'Спальня', style: 'Минимализм', packageType: 'Starter — $35'
+    name: '', email: '', roomType: 'Спальня', style: 'Минимализм', packageType: 'Starter — $35', photos: [] as File[]
   });
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -17,7 +18,7 @@ export default function Home() {
     const res = await fetch('/api/order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
+      body: JSON.stringify({...formData, photoCount: formData.photos.length, photos: undefined}),
     });
     setSending(false);
     if (res.ok) setSent(true);
@@ -164,7 +165,29 @@ export default function Home() {
               <button onClick={() => { setShowForm(false); setSent(false); }} className="text-gray-400 hover:text-white text-2xl leading-none">×</button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4"><div>
+  <label className="text-sm text-gray-400 block mb-1">
+    Фото комнаты (до 3 фото)
+  </label>
+  <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-white/20 rounded-xl cursor-pointer hover:border-violet-500/50 transition">
+    <span className="text-gray-500 mb-2">📷</span>
+    <span className="text-sm text-gray-500">
+      {formData.photos.length > 0
+        ? `${formData.photos.length} фото выбрано`
+        : 'Нажми чтобы загрузить'}
+    </span>
+    <input
+      type="file"
+      accept="image/*"
+      multiple
+      className="hidden"
+      onChange={e => {
+        const files = Array.from(e.target.files || []);
+        setFormData({...formData, photos: files});
+      }}
+    />
+  </label>
+</div>
               <div>
                 <label className="text-sm text-gray-400 block mb-1">Ваше имя</label>
                 <input

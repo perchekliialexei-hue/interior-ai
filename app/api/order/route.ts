@@ -5,7 +5,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { name, email, roomType, style, packageType } = body;
+  const { name, email, roomType, style, packageType, photoCount } = body;
 
   try {
     await resend.emails.send({
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
           <p><b>Email клиента:</b> ${email}</p>
           <p><b>Тип комнаты:</b> ${roomType}</p>
           <p><b>Стиль:</b> ${style}</p>
-          <p><b>Пакет:</b> ${packageType}</p>
+          <p><b>Пакет:</b> ${packageType}</p><p><b>Фото прикреплено:</b> ${photoCount || 0} шт.</p>
         </div>
       `,
     });
