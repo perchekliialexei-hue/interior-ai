@@ -45,7 +45,12 @@ const [formData, setFormData] = useState({
       }),
     });
 
-    setSent(true);
+    setSent(true);setTimeout(() => {
+  window.open(
+    `/viewer?width=${formData.width || 4}&length=${formData.length || 5}&height=${formData.height || 2.7}&style=${encodeURIComponent(formData.style)}`,
+    '_blank'
+  );
+}, 1500);
   } catch (error) {
     console.error(error);
   } finally {
