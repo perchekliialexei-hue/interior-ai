@@ -28,8 +28,19 @@ export async function POST(req: NextRequest) {
       furnitureDesc = `furniture layout: ${items}.`;
     }
 
-    const concept = design?.concept ? `Design concept: ${design.concept}.` : '';
-    const base = `${roomType} interior, ${style} style, ${width}x${length}m, ${height}m ceiling, ${colorDesc} ${furnitureDesc} ${concept} ${wishes || ''}`;
+    // Берём фото первых 3 товаров для референса
+const imageRefs = (design?.furniture || [])
+  .filter((f: any) => f.image)
+  .slice(0, 3)
+  .map((f: any) => f.name)
+  .join(', ');
+
+const furnitureRef = imageRefs ? `featuring exact furniture pieces: ${imageRefs},` : '';
+
+const prompts = [
+  `${base} ${furnitureRef} Photorealistic architectural render, corner perspective view showing full room, 4K, magazine quality, professional lighting, Pinterest interior`,
+  `${base} ${furnitureRef} Luxury interior photography, natural daylight, Architectural Digest style, warm atmosphere, highly detailed, wide angle`,
+];
 
     const prompts = [
       `${base} Photorealistic architectural render, corner perspective view showing full room, 4K, magazine quality, professional lighting, Pinterest interior`,

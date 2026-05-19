@@ -67,9 +67,9 @@ const MODEL_MAP: Record<string, string> = {
   desk: '/models/desk.glb',
   wardrobe: '/models/bookcaseClosedDoors.glb',
   shelf: '/models/bookcaseOpen.glb',
-  table: '/models/cabinetTelevision.glb',
   lamp: '/models/lampSquareFloor.glb',
   plant: '/models/plantSmall1.glb',
+  table: '/models/cabinetBedDrawerTable.glb',
   nightstand: '/models/cabinetBedDrawer.glb',
 };
 
@@ -101,8 +101,15 @@ function buildFurniture(scene: THREE.Scene, item: any, S: any, roomW: number, ro
         const box = new THREE.Box3().setFromObject(model);
         const size = new THREE.Vector3();
         box.getSize(size);
-        const targetH = Math.max(h, item.type === 'plant' ? 0.6 : 0.3);
-        const scale = Math.min(w / size.x, d / size.z, targetH / size.y);
+        const targetH = item.type === 'plant' ? 1.2 : h;
+        const scaleX = w / size.x;
+        const scaleZ = d / size.z;
+        const scaleY = targetH / size.y;
+        // Для высокой мебели (шкаф, полка) ограничиваем высоту
+        const isVertical = ['wardrobe', 'shelf', 'lamp'].includes(item.type);
+        const scale = isVertical
+      ? Math.min(scaleX, scaleZ, scaleY)
+      : Math.min(scaleX, scaleZ);
         model.scale.set(scale, scale, scale);
         // Ставим на пол
         // Ставим на пол
@@ -110,6 +117,25 @@ function buildFurniture(scene: THREE.Scene, item: any, S: any, roomW: number, ro
         model.position.set(x, 0, z);
         const box2 = new THREE.Box3().setFromObject(model);
         model.position.y = -box2.min.y;
+
+        // Поворачиваем мебель правильно
+        const roomCenterX = roomW / 2;
+        const roomCenterZ = roomL / 2;
+        if (['sofa', 'bed'].includes(item.type)) {
+          if (z < roomL * 0.35) model.rotation.y = 0;
+          else if (z > roomL * 0.65) model.rotation.y = Math.PI;
+          else if (x < roomCenterX) model.rotation.y = Math.PI / 2;
+          else model.rotation.y = -Math.PI / 2;
+        } else if (item.type === 'wardrobe' || item.type === 'shelf') {
+          if (z < roomL * 0.3) model.rotation.y = 0;
+          else if (z > roomL * 0.7) model.rotation.y = Math.PI;
+          else if (x < roomCenterX) model.rotation.y = Math.PI / 2;
+          else model.rotation.y = -Math.PI / 2;
+        } else if (item.type === 'desk') {
+          model.rotation.y = Math.PI;
+        } else if (item.type === 'chair') {
+          model.rotation.y = x < roomCenterX ? -Math.PI / 2 : Math.PI / 2;
+        }
         scene.add(model);
       },
       undefined,
@@ -321,7 +347,7 @@ export default function Viewer() {
       // Зоны по типу мебели
       const ZONES: Record<string, {x: number, z: number}[]> = {
   bed:      [{ x: width*0.5,  z: length*0.22 }, { x: width*0.5, z: length*0.3 }],
-  sofa:     [{ x: width*0.5,  z: length*0.18 }, { x: width*0.5, z: length*0.25 }],
+  sofa: [{ x: width*0.5, z: length*0.25 }, { x: width*0.5, z: length*0.35 }],
   wardrobe: [{ x: width*0.12, z: length*0.25 }, { x: width*0.88, z: length*0.25 }],
   desk:     [{ x: width*0.25, z: length*0.35 }, { x: width*0.75, z: length*0.35 }],
   chair:    [{ x: width*0.35, z: length*0.5  }, { x: width*0.65, z: length*0.5  }],

@@ -56,7 +56,7 @@ const [formData, setFormData] = useState({
     }
 
     // Генерируем рендер через Gemini
-    const renderRes = await fetch('/api/render', {
+    const renderRes = await fetch('/api/render-pixtral', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
