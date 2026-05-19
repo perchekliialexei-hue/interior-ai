@@ -101,11 +101,15 @@ function buildFurniture(scene: THREE.Scene, item: any, S: any, roomW: number, ro
         const box = new THREE.Box3().setFromObject(model);
         const size = new THREE.Vector3();
         box.getSize(size);
-        const scale = Math.min(w / size.x, d / size.z, h / size.y);
+        const targetH = Math.max(h, item.type === 'plant' ? 0.6 : 0.3);
+        const scale = Math.min(w / size.x, d / size.z, targetH / size.y);
         model.scale.set(scale, scale, scale);
         // Ставим на пол
+        // Ставим на пол
+        // Ставим на пол после масштабирования
+        model.position.set(x, 0, z);
         const box2 = new THREE.Box3().setFromObject(model);
-        model.position.set(x, -box2.min.y * scale, z);
+        model.position.y = -box2.min.y;
         scene.add(model);
       },
       undefined,
