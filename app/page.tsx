@@ -18,10 +18,26 @@ const [formData, setFormData] = useState({
   setSending(true);
 
   try {
-    const aiRes = await fetch('/api/analyze', {
+    // Конвертируем фото в base64 если есть
+    let photoBase64 = null;
+    if (formData.photos.length > 0) {
+      const file = formData.photos[0];
+      photoBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]); // убираем data:image/...;base64,
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Вызываем /api/design с фото
+    const aiRes = await fetch('/api/design', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        photoBase64,
         roomType: formData.roomType,
         style: formData.style,
         width: formData.width || '4',
@@ -34,6 +50,32 @@ const [formData, setFormData] = useState({
     const aiData = await aiRes.json();
     const design = aiData.design;
 
+    // Сохраняем дизайн
+    if (design) {
+      localStorage.setItem('roomDesign', JSON.stringify(design));
+    }
+
+    // Генерируем рендер через Gemini
+    const renderRes = await fetch('/api/render', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    roomType: formData.roomType,
+    style: formData.style,
+    width: formData.width || '4',
+    length: formData.length || '5',
+    height: formData.height || '2.7',
+    wishes: formData.wishes,
+    design, // ← добавляем JSON от Mistral
+  }),
+});
+    const renderData = await renderRes.json();
+    
+    if (renderData.images?.length > 0) {
+      localStorage.setItem('roomRenders', JSON.stringify(renderData.images));
+    }
+
+    // Отправляем заявку на почту
     await fetch('/api/order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -45,12 +87,13 @@ const [formData, setFormData] = useState({
       }),
     });
 
-    setSent(true);setTimeout(() => {
-  window.open(
-    `/viewer?width=${formData.width || 4}&length=${formData.length || 5}&height=${formData.height || 2.7}&style=${encodeURIComponent(formData.style)}`,
-    '_blank'
-  );
-}, 1500);
+    setSent(true);
+    setTimeout(() => {
+      setShowForm(false);
+      // показываем рендеры прямо на главной
+      window.location.href = '/result';
+    }, 1500);
+
   } catch (error) {
     console.error(error);
   } finally {
