@@ -18,7 +18,6 @@ export async function POST(req: NextRequest) {
       colorDesc = `walls painted ${design.colors.walls || 'white'}, ${design.colors.floor || 'wood'} floor,`;
     }
 
-    // Строим описание расстановки мебели с позициями
     let furnitureDesc = '';
     if (design?.furniture?.length > 0) {
       const items = design.furniture.slice(0, 7).map((f: any) => {
@@ -28,19 +27,7 @@ export async function POST(req: NextRequest) {
       furnitureDesc = `furniture layout: ${items}.`;
     }
 
-    // Берём фото первых 3 товаров для референса
-const imageRefs = (design?.furniture || [])
-  .filter((f: any) => f.image)
-  .slice(0, 3)
-  .map((f: any) => f.name)
-  .join(', ');
-
-const furnitureRef = imageRefs ? `featuring exact furniture pieces: ${imageRefs},` : '';
-
-const prompts = [
-  `${base} ${furnitureRef} Photorealistic architectural render, corner perspective view showing full room, 4K, magazine quality, professional lighting, Pinterest interior`,
-  `${base} ${furnitureRef} Luxury interior photography, natural daylight, Architectural Digest style, warm atmosphere, highly detailed, wide angle`,
-];
+    const base = `${roomType} interior, ${style} style, ${width}x${length}m, ${height}m ceiling, ${colorDesc} ${furnitureDesc} ${wishes || ''}`;
 
     const prompts = [
       `${base} Photorealistic architectural render, corner perspective view showing full room, 4K, magazine quality, professional lighting, Pinterest interior`,
