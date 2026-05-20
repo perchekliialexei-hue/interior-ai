@@ -1,4 +1,6 @@
 'use client';
+'use client';
+import { Suspense } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import * as THREE from 'three';
@@ -166,7 +168,9 @@ function buildFurniture(scene: THREE.Scene, item: any, S: any, roomW: number, ro
   }
 }
 
-export default function Viewer() {
+import { Suspense } from 'react';
+
+function ViewerContent() {
   const mountRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const [aiDesign, setAiDesign] = useState<any>(null);
@@ -476,5 +480,12 @@ export default function Viewer() {
         </div>
       )}
     </div>
+  );
+}
+export default function Viewer() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#08080F]" />}>
+      <ViewerContent />
+    </Suspense>
   );
 }
