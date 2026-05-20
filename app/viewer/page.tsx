@@ -168,8 +168,6 @@ function buildFurniture(scene: THREE.Scene, item: any, S: any, roomW: number, ro
   }
 }
 
-import { Suspense } from 'react';
-
 function ViewerContent() {
   const mountRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
