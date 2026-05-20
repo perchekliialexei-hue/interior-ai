@@ -131,7 +131,7 @@ Rules:
           if (!pick) return item;
           return {
             ...item,
-            x: item.x,  // сохраняем координаты от Mistral
+            x: item.x,
             z: item.z,
             name: pick.name,
             color: pick.color,
@@ -141,6 +141,7 @@ Rules:
             jysk_name: pick.name,
             jysk_price: `${pick.price} ${pick.currency}`,
             jysk_url: pick.url,
+            image: pick.image,
           };
         });
       }

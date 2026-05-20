@@ -56,18 +56,18 @@ const [formData, setFormData] = useState({
     }
 
     // Генерируем рендер через Gemini
-    const renderRes = await fetch('/api/render-pixtral', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    roomType: formData.roomType,
-    style: formData.style,
-    width: formData.width || '4',
-    length: formData.length || '5',
-    height: formData.height || '2.7',
-    wishes: formData.wishes,
-    design, // ← добавляем JSON от Mistral
-  }),
+const renderRes = await fetch('/api/render-pixtral', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomType: formData.roomType,
+          style: formData.style,
+          width: formData.width || '4',
+          length: formData.length || '5',
+          height: formData.height || '2.7',
+          wishes: formData.wishes,
+          design,
+        }),
 });
     const renderData = await renderRes.json();
     
