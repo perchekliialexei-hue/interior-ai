@@ -29,9 +29,6 @@ export default function Renders() {
       const baseDesign = savedDesign ? JSON.parse(savedDesign) : {};
       const base64 = selectedImage.split(',')[1];
 
-    console.log('Sheets raw:', JSON.stringify(sheetsData).substring(0, 300));
-    console.log('Products count:', products.length);
-    console.log('Image type:', selectedImage?.substring(0, 50));
     console.log('Base64 length:', base64?.length);
       const res = await fetch('/api/analyze-render', {
         method: 'POST',
