@@ -51,8 +51,8 @@ const [formData, setFormData] = useState({
     const design = aiData.design;
     console.log('Design received:', JSON.stringify(design?.furniture?.slice(0,2)));
 
-if (!design) {
-  console.error('Design failed:', aiData.error);
+if (design) {
+  console.error('Design failed:', aiData.error);}
 
     // Сохраняем дизайн
     if (design) {
