@@ -99,6 +99,7 @@ Rules:
       const products = sheetsData.products || [];
 
       console.log('Products from sheets:', products.length);
+      console.log('First product types:', products.slice(0, 5).map((p: any) => p.type));
 
       const STYLE_MAP: Record<string, string> = {
         'Минимализм': 'minimalist',
