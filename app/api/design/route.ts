@@ -100,6 +100,7 @@ Rules:
 
       console.log('Products from sheets:', products.length);
       console.log('First product types:', products.slice(0, 5).map((p: any) => p.type));
+      console.log('All product types in DB:', [...new Set(products.map((p: any) => p.type))]);
 
       const STYLE_MAP: Record<string, string> = {
         'Минимализм': 'minimalist',
@@ -119,6 +120,9 @@ Rules:
       const styleKey = STYLE_MAP[style] || 'minimalist';
       const roomKey = ROOM_MAP[roomType] || 'bedroom';
 
+      console.log('Style key:', styleKey, '| Room key:', roomKey);
+      console.log('Mistral furniture types:', design.furniture?.map((f: any) => f.type));
+
       if (design.furniture && products.length > 0) {
         design.furniture = design.furniture.map((item: any) => {
           const candidates = products.filter((p: any) =>
@@ -129,6 +133,9 @@ Rules:
           const pick = candidates.length > 0
             ? candidates[Math.floor(Math.random() * candidates.length)]
             : fallback;
+
+          console.log(`  [${item.type}] candidates: ${candidates.length}, fallback: ${fallback?.id || 'NONE'}, pick: ${pick?.id || 'NOT FOUND'}, image: ${pick?.image ? 'OK' : 'MISSING'}`);
+
           if (!pick) return item;
           return {
             ...item,
