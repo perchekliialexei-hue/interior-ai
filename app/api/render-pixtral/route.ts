@@ -4,6 +4,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { roomType, style, width, length, height, wishes, design } = body;
+     console.log('render-pixtral received design:', !!design, 'furniture count:', design?.furniture?.length);
+    console.log('furniture with images:', design?.furniture?.filter((f: any) => f.image).length);
 
     const furnitureWithImages = (design?.furniture || [])
       .filter((f: any) => f.image)
