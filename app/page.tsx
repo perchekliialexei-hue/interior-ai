@@ -49,10 +49,11 @@ const [formData, setFormData] = useState({
 
     const aiData = await aiRes.json();
     const design = aiData.design;
-    console.log('Design received:', JSON.stringify(design?.furniture?.slice(0,2)));
-
-if (design) {
-  console.error('Design failed:', aiData.error);}
+if (!design) {
+  console.error('Design failed:', aiData.error);
+} else {
+  console.log('Design received:', JSON.stringify(design?.furniture?.slice(0,2)));
+}
 
     // Сохраняем дизайн
     if (design) {
@@ -169,7 +170,7 @@ const renderRes = await fetch('/api/render-pixtral', {
         ))}
       </section>
 
-      <section className="max-w-5xl mx-auto px-8 py-16"><section className="max-w-5xl mx-auto px-8 py-16">
+      <section className="max-w-5xl mx-auto px-8 py-16">
   <h2 className="text-3xl font-bold text-center mb-12">Как это работает</h2>
   <div className="grid md:grid-cols-4 gap-6">
     {[
@@ -185,7 +186,7 @@ const renderRes = await fetch('/api/render-pixtral', {
       </div>
     ))}
   </div>
-</section><section className="max-w-5xl mx-auto px-8 py-8">
+<section className="max-w-5xl mx-auto px-8 py-8">
   <h2 className="text-3xl font-bold text-center mb-12">Что говорят клиенты</h2>
   <div className="grid md:grid-cols-3 gap-6">
     {[
