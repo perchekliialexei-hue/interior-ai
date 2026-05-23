@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-
-const SHEET_ID = '1S0DxR_8nUGRYEl1brqfdsBVSJaGfbpTJUPfUk5y1Afg';
-const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Products`;
-
+ 
+const SHEET_ID = '15E9X3HS8K8tVWBA_t76gxEwJ1tZhoeweGU5-i20q50o';
+const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Sheet1`;
+ 
 export async function GET() {
   try {
-    const res = await fetch(SHEET_URL, { next: { revalidate: 3600 } });
+    const res = await fetch(SHEET_URL, { cache: 'no-store' });
     const text = await res.text();
     
     const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)?.[1] || '{}');
@@ -16,7 +16,6 @@ export async function GET() {
     const products = rows.map((row: any) => {
       const obj: any = {};
       cols.forEach((col: any, i: number) => {
-        // Берём только первое слово из лейбла (до пробела)
         const key = col.label.split(' ')[0];
         const val = row.c?.[i]?.v ?? null;
         obj[key] = val;
@@ -25,7 +24,7 @@ export async function GET() {
       if (obj.roomTypes) obj.roomTypes = String(obj.roomTypes).split(',').map((s: string) => s.trim());
       return obj;
     }).filter((p: any) => p.id);
-
+ 
     return NextResponse.json({ success: true, products, count: products.length });
   } catch (error) {
     console.error('Sheets error:', error);

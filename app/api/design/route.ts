@@ -92,6 +92,7 @@ Rules:
 
     // Подбираем реальные товары из Google Sheets
     try {
+      console.log('=== STARTING SHEETS BLOCK ===');
       const host = req.headers.get('host') || 'localhost:3000';
       const protocol = host.includes('localhost') ? 'http' : 'https';
       const sheetsRes = await fetch(`${protocol}://${host}/api/sheets`);
