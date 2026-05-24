@@ -239,27 +239,48 @@ function buildFurnitureItem(scene: THREE.Scene, item: any, W: number, L: number)
   const w = Math.max(0.3, Math.min(item.width ?? 1.0, W * 0.75));
   const d = Math.max(0.3, Math.min(item.depth ?? 0.6, L * 0.75));
   const h = Math.max(0.3, item.height ?? 0.8);
-  // Используем позиции от Mistral, ограничиваем границами комнаты
-  const rawX = typeof item.x === "number" && !isNaN(item.x) ? item.x : W/2;
-  const x = Math.max(w/2 + 0.15, Math.min(W - w/2 - 0.15, rawX));
-  const rawZ = typeof item.z === "number" && !isNaN(item.z) ? item.z : L/2;
-  const z = Math.max(d/2 + 0.15, Math.min(L - d/2 - 0.15, rawZ));
+  const rawX = typeof item.x === 'number' && !isNaN(item.x) ? item.x : W / 2;
+  const rawZ = typeof item.z === 'number' && !isNaN(item.z) ? item.z : L / 2;
+  const x = Math.max(w / 2 + 0.15, Math.min(W - w / 2 - 0.15, rawX));
+  const z = Math.max(d / 2 + 0.15, Math.min(L - d / 2 - 0.15, rawZ));
+
+  // Группа для поворота мебели
+  const group = new THREE.Group();
+  group.position.set(x, 0, z);
+  const rotDeg = typeof item.rotation === 'number' ? item.rotation : 0;
+  group.rotation.y = (rotDeg * Math.PI) / 180;
+  scene.add(group);
+
+  // Прокси-сцена: смещаем объекты относительно группы
+  const proxy: any = {
+    add: (o: THREE.Object3D) => {
+      o.position.x -= x;
+      o.position.z -= z;
+      group.add(o);
+    },
+    fog: scene.fog,
+  };
 
   switch (item.type) {
-    case 'bed':        buildBed(scene, x, z, w, d, color); break;
-    case 'sofa':       buildSofa(scene, x, z, w, d, color); break;
-    case 'wardrobe':   buildWardrobe(scene, x, z, w, d, Math.max(1.6, h), color); break;
-    case 'desk':       buildDesk(scene, x, z, w, d, color); break;
-    case 'chair':      buildChair(scene, x, z, color); break;
-    case 'table':      buildTable(scene, x, z, w, d, color); break;
-    case 'shelf':      buildShelf(scene, x, z, w, d, Math.max(1.4, h), color); break;
-    case 'lamp':       buildLamp(scene, x, z, color); break;
-    case 'plant':      buildPlant(scene, x, z, color); break;
-    case 'rug':        buildRug(scene, x, z, w, d, color); break;
-    case 'nightstand': buildNightstand(scene, x, z, color); break;
+    case 'bed':        buildBed(proxy, x, z, w, d, color); break;
+    case 'sofa':       buildSofa(proxy, x, z, w, d, color); break;
+    case 'wardrobe':   buildWardrobe(proxy, x, z, w, d, Math.max(1.6, h), color); break;
+    case 'desk':       buildDesk(proxy, x, z, w, d, color); break;
+    case 'chair':      buildChair(proxy, x, z, color); break;
+    case 'table':      buildTable(proxy, x, z, w, d, color); break;
+    case 'shelf':      buildShelf(proxy, x, z, w, d, Math.max(1.4, h), color); break;
+    case 'lamp':       buildLamp(proxy, x, z, color); break;
+    case 'plant':      buildPlant(proxy, x, z, color); break;
+    case 'rug':        buildRug(proxy, x, z, w, d, color); break;
+    case 'nightstand': buildNightstand(proxy, x, z, color); break;
     default: {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color, roughness: 0.7 }));
-      mesh.position.set(x, h/2, z); mesh.castShadow = true; scene.add(mesh);
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, d),
+        new THREE.MeshStandardMaterial({ color, roughness: 0.7 })
+      );
+      mesh.position.set(0, h / 2, 0);
+      mesh.castShadow = true;
+      group.add(mesh);
     }
   }
 }
@@ -318,8 +339,8 @@ function ViewerContent() {
     controls.target.set(width / 2, height * 0.25, length / 2);
 
     // ── Освещение ──
-    scene.add(new THREE.AmbientLight(S.ambient.color, S.ambient.int));
-    const sun = new THREE.DirectionalLight(S.sun.color, S.sun.int);
+    scene.add(new THREE.AmbientLight(0xFFFFFF, 0.5));
+    const sun = new THREE.DirectionalLight(0xFFF8F0, 1.2);
     sun.position.set(width * 0.6, height * 2.2, length * 0.4);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -327,10 +348,12 @@ function ViewerContent() {
     sun.shadow.camera.top    = height * 2;   sun.shadow.camera.bottom = -0.5;
     sun.shadow.bias = -0.0005;
     scene.add(sun);
-    const fill = new THREE.DirectionalLight(S.fill.color, S.fill.int);
+    // Нейтральный fill свет с противоположной стороны
+    const fill = new THREE.DirectionalLight(0xE8F0FF, 0.4);
     fill.position.set(-width * 0.4, height, length * 0.9);
     scene.add(fill);
-    const ceilLight = new THREE.PointLight(S.lamp.color, S.lamp.int, Math.max(width, length) * 1.5);
+    // Мягкий потолочный свет — нейтральный белый, не оранжевый
+    const ceilLight = new THREE.PointLight(0xFFFFEE, 1.2, Math.max(width, length) * 2);
     ceilLight.position.set(width / 2, height * 0.9, length / 2);
     scene.add(ceilLight);
 
