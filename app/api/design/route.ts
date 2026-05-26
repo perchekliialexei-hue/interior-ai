@@ -80,13 +80,41 @@ CRITICAL placement rules for ${W}x${L}m room:
     if (!jsonMatch) throw new Error('No JSON from Mistral: ' + mistralText.substring(0, 200));
     const design = JSON.parse(jsonMatch[0]);
 
-    // ── Шаг 2: Подбираем реальные товары из Sheets ───────────────────────────
+    // ── Шаг 2: Подбираем реальные товары напрямую из Google Sheets ───────────
     try {
-      const host = req.headers.get('host') || 'localhost:3000';
-      const protocol = host.includes('localhost') ? 'http' : 'https';
-      const sheetsRes = await fetch(`${protocol}://${host}/api/sheets`);
-      const sheetsData = await sheetsRes.json();
-      const products = sheetsData.products || [];
+      const SHEET_ID = '15E9X3HS8K8tVWBA_t76gxEwJ1tZhoeweGU5-i20q50o';
+      const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Sheet1`;
+
+      const sheetsRes = await fetch(SHEET_URL, { cache: 'no-store' });
+      const text = await sheetsRes.text();
+      const json = JSON.parse(
+        text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)?.[1] || '{}'
+      );
+      const rows = json.table?.rows || [];
+      const cols = json.table?.cols || [];
+
+      const products = rows.map((row: any) => {
+        const obj: any = {};
+        cols.forEach((col: any, i: number) => {
+          const key = col.label.split(' ')[0];
+          const cell = row.c?.[i];
+          if (!cell) { obj[key] = null; return; }
+          let val = cell.v ?? null;
+          if (typeof val === 'string' && val.startsWith('Date(')) {
+            val = cell.f ? parseFloat(String(cell.f).replace(',', '.')) : null;
+          }
+          if (['price', 'width', 'depth', 'height'].includes(key)) {
+            val = val !== null ? parseFloat(String(val).replace(',', '.')) : null;
+            if (isNaN(val as number)) val = null;
+          }
+          obj[key] = val;
+        });
+        if (obj.styles) obj.styles = String(obj.styles).split(',').map((s: string) => s.trim());
+        if (obj.roomTypes) obj.roomTypes = String(obj.roomTypes).split(',').map((s: string) => s.trim());
+        if (obj.url) obj.url = String(obj.url).replace('jysk.md/ro/product/', 'jysk.md/ru/product/');
+        return obj;
+      }).filter((p: any) => p.id);
+
       console.log('Products from sheets:', products.length);
 
       const STYLE_MAP: Record<string, string> = {
@@ -200,7 +228,6 @@ rotation: 0=facing front(viewer), 180=facing back wall, 90=facing right wall, 27
           if (arrMatch) {
             try {
               const updates: any[] = JSON.parse(arrMatch[0]);
-              // Применяем обновления — каждый тип обновляем только один раз
               const updated = new Set<string>();
               updates.forEach((upd: any) => {
                 if (updated.has(upd.type)) return;
@@ -226,11 +253,11 @@ rotation: 0=facing front(viewer), 180=facing back wall, 90=facing right wall, 27
     }
 
     // Сохраняем параметры комнаты
-    design.width   = String(W);
-    design.length  = String(L);
-    design.height  = String(H);
+    design.width    = String(W);
+    design.length   = String(L);
+    design.height   = String(H);
     design.roomType = roomType;
-    design.style   = style;
+    design.style    = style;
 
     return NextResponse.json({ success: true, design });
 
