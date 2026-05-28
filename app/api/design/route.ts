@@ -111,6 +111,7 @@ CRITICAL placement rules for ${W}x${L}m room:
         });
         if (obj.styles) obj.styles = String(obj.styles).split(',').map((s: string) => s.trim());
         if (obj.roomTypes) obj.roomTypes = String(obj.roomTypes).split(',').map((s: string) => s.trim());
+        if (obj.subtype) obj.subtype = String(obj.subtype).trim();
         if (obj.url) obj.url = String(obj.url).replace('jysk.md/ro/product/', 'jysk.md/ru/product/');
         return obj;
       }).filter((p: any) => p.id);
@@ -128,42 +129,71 @@ CRITICAL placement rules for ${W}x${L}m room:
       const styleKey = STYLE_MAP[style] || 'minimalist';
       const roomKey = ROOM_MAP[roomType] || 'bedroom';
 
-      if (design.furniture && products.length > 0) {
-        design.furniture = design.furniture.map((item: any) => {
-          const candidates = products.filter((p: any) =>
-            p.type === item.type && (p.styles?.includes(styleKey) || p.roomTypes?.includes(roomKey))
-          );
-          const fallback = products.find((p: any) => p.type === item.type);
-          const pick = candidates.length > 0
-            ? candidates[Math.floor(Math.random() * candidates.length)]
-            : fallback;
+if (design.furniture && products.length > 0) {
+  design.furniture = design.furniture.map((item: any) => {
+    // Определяем нужный subtype для каждого типа мебели
+    const SUBTYPE_MAP: Record<string, string[]> = {
+      'wardrobe':   ['wardrobe'],
+      'dresser':    ['dresser'],
+      'bed':        ['bed'],
+      'chair':      ['dining_chair', 'chair'],
+      'desk':       ['desk'],
+      'sofa':       ['sofa'],
+      'shelf':      ['shelf'],
+      'nightstand': ['nightstand'],
+      'table':      ['table'],
+      'lamp':       ['lamp'],
+      'rug':        ['rug'],
+      'plant':      ['plant'],
+    };
 
-          const defaults = DEFAULT_SIZES[item.type] || { width: 1.0, depth: 1.0, height: 0.8 };
+    const allowedSubtypes = SUBTYPE_MAP[item.type] || [item.type];
 
-          if (!pick) return {
-            ...item,
-            width:  typeof item.width  === 'number' ? item.width  : defaults.width,
-            depth:  typeof item.depth  === 'number' ? item.depth  : defaults.depth,
-            height: typeof item.height === 'number' ? item.height : defaults.height,
-          };
+    // Фильтруем по subtype + стиль/комната
+    const candidates = products.filter((p: any) => {
+      const sub = p.subtype || p.type;
+      const subtypeOk = allowedSubtypes.includes(sub);
+      const styleOk = p.styles?.includes(styleKey) || p.roomTypes?.includes(roomKey);
+      return subtypeOk && styleOk;
+    });
 
-          return {
-            ...item,
-            x: item.x,
-            z: item.z,
-            rotation: item.rotation || 0,
-            name:       pick.name,
-            color:      pick.color || item.color,
-            width:      typeof pick.width  === 'number' ? pick.width  : defaults.width,
-            depth:      typeof pick.depth  === 'number' ? pick.depth  : defaults.depth,
-            height:     typeof pick.height === 'number' ? pick.height : defaults.height,
-            jysk_name:  pick.name,
-            jysk_price: `${pick.price} ${pick.currency}`,
-            jysk_url:   pick.url,
-            image:      pick.image,
-          };
-        });
-      }
+    // Фолбек — только по subtype без стиля
+    const fallback = products.find((p: any) => {
+      const sub = p.subtype || p.type;
+      return allowedSubtypes.includes(sub);
+    });
+
+    const pick = candidates.length > 0
+      ? candidates[Math.floor(Math.random() * candidates.length)]
+      : fallback;
+
+    const defaults = DEFAULT_SIZES[item.type] || { width: 1.0, depth: 1.0, height: 0.8 };
+
+    if (!pick) return {
+      ...item,
+      width:  typeof item.width  === 'number' ? item.width  : defaults.width,
+      depth:  typeof item.depth  === 'number' ? item.depth  : defaults.depth,
+      height: typeof item.height === 'number' ? item.height : defaults.height,
+    };
+
+    return {
+      ...item,
+      x: item.x,
+      z: item.z,
+      rotation: item.rotation || 0,
+      name:       pick.name,
+      color:      pick.color || item.color,
+      width:      typeof pick.width  === 'number' ? pick.width  : defaults.width,
+      depth:      typeof pick.depth  === 'number' ? pick.depth  : defaults.depth,
+      height:     typeof pick.height === 'number' ? pick.height : defaults.height,
+      jysk_name:  pick.name,
+      jysk_price: `${pick.price} ${pick.currency}`,
+      jysk_url:   pick.url,
+      image:      pick.image,
+      subtype:    pick.subtype || pick.type,
+    };
+  });
+}
     } catch (e) {
       console.error('Sheets error:', e);
     }

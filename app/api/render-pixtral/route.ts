@@ -1,50 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// ── Карта типов мебели → английский ──────────────────────────────────────────
 function typeToEN(type: string): string {
   const map: Record<string, string> = {
     bed: 'bed', sofa: 'sofa', wardrobe: 'wardrobe', desk: 'writing desk',
     chair: 'chair', chair_office: 'office chair', table: 'coffee table',
     shelf: 'bookshelf', lamp: 'floor lamp', plant: 'potted plant',
-    rug: 'area rug', nightstand: 'nightstand', wardrobe2: 'dresser',
+    rug: 'area rug', nightstand: 'nightstand',
   };
   return map[type] || type;
 }
 
+// ── Позиция предмета в комнате ────────────────────────────────────────────────
 function positionToEN(item: any, width: number, length: number): string {
   const x = parseFloat(item.x) || width / 2;
   const z = parseFloat(item.z) || length / 2;
   const relX = x / width;
   const relZ = z / length;
-
   const h = relZ < 0.35 ? 'back' : relZ > 0.65 ? 'front' : 'center';
   const v = relX < 0.35 ? 'left' : relX > 0.65 ? 'right' : 'center';
-
   if (h === 'center' && v === 'center') return 'in the center of the room';
   if (v === 'center') return `along the ${h} wall`;
   if (h === 'center') return `along the ${v} wall`;
   return `in the ${h}-${v} corner`;
 }
 
+// ── Hex → читаемое описание цвета ────────────────────────────────────────────
 function colorToEN(hex: string): string {
-  if (!hex) return '';
+  if (!hex) return 'natural';
   const h = hex.replace('#', '').toLowerCase();
   const r = parseInt(h.slice(0, 2), 16);
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
-  if (r > 220 && g > 220 && b > 220) return 'white';
-  if (r < 60 && g < 60 && b < 60) return 'black';
-  if (r > 150 && g > 120 && b < 80) return 'warm oak';
-  if (r > 120 && g > 100 && b > 80 && Math.abs(r - g) < 40) return 'beige';
-  if (r > 100 && g > 100 && b > 100 && Math.abs(r - g) < 20) return 'light gray';
+  const brightness = (r + g + b) / 3;
+  if (brightness > 220) return 'white';
+  if (brightness < 60)  return 'black';
+  if (r > 160 && g > 130 && b < 90) return 'warm oak';
+  if (r > 180 && g > 160 && b > 130 && Math.abs(r - g) < 40) return 'beige';
+  if (brightness > 150 && Math.abs(r - g) < 25 && Math.abs(g - b) < 25) return 'light gray';
   if (r > 120 && g < 80 && b < 80) return 'red';
   if (r < 80 && g < 80 && b > 120) return 'navy blue';
   if (r < 80 && g > 100 && b < 80) return 'forest green';
   if (r > 180 && g > 150 && b > 100) return 'warm sand';
-  return 'natural wood';
+  if (r > 120 && g > 90 && b > 60) return 'natural wood';
+  return 'neutral';
 }
 
-function colorToHex(hex: string): string {
-  return hex || '#F4F0EA';
+// ── Очистка румынского/молдавского названия для промпта ──────────────────────
+// Убираем диакритику и переводим ключевые слова
+function cleanProductName(name: string | undefined, type: string): string {
+  if (!name) return typeToEN(type);
+  return name
+    .replace(/[ăâîșțĂÂÎȘȚ]/g, (c) => ({ ă:'a', â:'a', î:'i', ș:'s', ț:'t', Ă:'A', Â:'A', Î:'I', Ș:'S', Ț:'T' }[c] || c))
+    .replace(/\bpat\b/gi, 'bed')
+    .replace(/\bTablie\b/gi, 'headboard')
+    .replace(/\bComoda\b/gi, 'chest of drawers')
+    .replace(/\bNoptiera\b/gi, 'nightstand')
+    .replace(/\bBirou\b/gi, 'desk')
+    .replace(/\bScaun\b/gi, 'chair')
+    .replace(/\bEtajera\b/gi, 'shelf')
+    .replace(/\bLampadar\b/gi, 'floor lamp')
+    .replace(/\bCovor\b/gi, 'rug')
+    .replace(/\bdulap\b/gi, 'wardrobe')
+    .replace(/\bsofa\b/gi, 'sofa')
+    .replace(/\bcanapea\b/gi, 'sofa');
 }
 
 export async function POST(req: NextRequest) {
@@ -56,28 +75,31 @@ export async function POST(req: NextRequest) {
     const L = parseFloat(length) || 5;
     const H = parseFloat(height) || 2.7;
 
-    console.log('render-pixtral start, furniture:', design?.furniture?.length);
-
     const furniture = design?.furniture || [];
-    const wallColor = design?.colors?.walls || '#F4F0EA';
-    const floorColor = design?.colors?.floor || '#C8B89A';
+    const wallColor  = design?.colors?.walls   || '#F4F0EA';
+    const floorColor = design?.colors?.floor   || '#C8B89A';
+    const accentColor = design?.colors?.accent || '#8B7355';
 
-    const furnitureDetails = furniture.map((f: any) => {
-      const name = f.jysk_name || f.name || typeToEN(f.type);
-      const color = colorToEN(f.color);
-      const position = positionToEN(f, W, L);
-      return `- ${name}${color ? ', ' + color : ''}, positioned ${position}`;
+    console.log('render-pixtral start, furniture:', furniture.length);
+
+    // ── Строим детальное описание мебели ─────────────────────────────────────
+    // Включаем: очищенное название, тип, цвет, позицию
+    const furnitureLines = furniture.map((f: any) => {
+      const cleanName = cleanProductName(f.jysk_name || f.name, f.type);
+      const colorDesc = colorToEN(f.color);
+      const position  = positionToEN(f, W, L);
+      const sizeHint  = f.width && f.depth
+        ? `(${f.width}m × ${f.depth}m)`
+        : '';
+      return `- ${colorDesc} ${typeToEN(f.type)} "${cleanName}" ${sizeHint}, ${position}`;
     }).join('\n');
 
-    // Pixtral: анализ реальных фото товаров
+    // ── Pixtral анализирует фото реальных товаров ─────────────────────────────
     const furnitureWithImages = furniture
-      .filter((f: any) => f.image && ['bed', 'sofa', 'wardrobe', 'desk', 'chair', 'chair_office'].includes(f.type))
+      .filter((f: any) => f.image && ['bed', 'sofa', 'wardrobe', 'desk', 'chair'].includes(f.type))
       .slice(0, 3);
 
-    console.log('furniture with images:', furnitureWithImages.length);
-
     let pixtralContext = '';
-
     if (furnitureWithImages.length > 0) {
       const imageContents: any[] = [];
       for (const item of furnitureWithImages) {
@@ -86,41 +108,42 @@ export async function POST(req: NextRequest) {
           if (res.ok) {
             const buffer = await res.arrayBuffer();
             const base64 = Buffer.from(buffer).toString('base64');
-            const mimeType = res.headers.get('content-type') || 'image/jpeg';
-            imageContents.push({ type: 'image_url', image_url: `data:${mimeType};base64,${base64}` });
-            imageContents.push({ type: 'text', text: `Item: ${item.jysk_name || item.name}` });
+            const mime = res.headers.get('content-type') || 'image/jpeg';
+            const cleanedName = cleanProductName(item.jysk_name || item.name, item.type);
+            imageContents.push({ type: 'image_url', image_url: `data:${mime};base64,${base64}` });
+            imageContents.push({ type: 'text', text: `This is a ${typeToEN(item.type)} called "${cleanedName}". Color: ${colorToEN(item.color)}.` });
           }
         } catch {}
       }
 
       if (imageContents.length > 0) {
-        const pixtralPrompt = `Describe each furniture piece's exact visual appearance in 1 sentence: 
-material finish, texture, color tone, style details. Be precise and concise.`;
-
         try {
-          const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+          const pixtralRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${process.env.MISTRAL_API_KEY}`,
-            },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.MISTRAL_API_KEY}` },
             body: JSON.stringify({
               model: 'pixtral-12b-2409',
-              messages: [{ role: 'user', content: [...imageContents, { type: 'text', text: pixtralPrompt }] }],
-              max_tokens: 200,
-              temperature: 0.2,
+              messages: [{
+                role: 'user',
+                content: [
+                  ...imageContents,
+                  { type: 'text', text: `For each furniture piece, describe in ONE sentence: exact color tone, material finish, and key visual details that would help an artist render it realistically. Be specific: "warm beige oak veneer with brushed brass legs" not just "wooden".` }
+                ],
+              }],
+              max_tokens: 250,
+              temperature: 0.1,
             }),
           });
-          const data = await response.json();
-          pixtralContext = data.choices?.[0]?.message?.content || '';
-          console.log('Pixtral context length:', pixtralContext.length);
+          const pixtralData = await pixtralRes.json();
+          pixtralContext = pixtralData.choices?.[0]?.message?.content || '';
+          console.log('Pixtral context:', pixtralContext.substring(0, 200));
         } catch (e) {
-          console.error('Pixtral error:', e);
+          console.error('Pixtral context error:', e);
         }
       }
     }
 
-    // Детальный маппинг стилей
+    // ── Стили ─────────────────────────────────────────────────────────────────
     const styleMap: Record<string, { mood: string; lighting: string; materials: string; atmosphere: string }> = {
       'Минимализм': {
         mood: 'minimalist Japandi interior design',
@@ -130,104 +153,111 @@ material finish, texture, color tone, style details. Be precise and concise.`;
       },
       'Скандинавский': {
         mood: 'Scandinavian hygge interior design',
-        lighting: 'warm afternoon golden-hour sunlight through sheer linen curtains, cozy glow',
-        materials: 'light birch veneer, chunky wool knits, sheepskin throws, white-painted wood, rattan accents',
+        lighting: 'warm afternoon golden-hour sunlight through sheer linen curtains',
+        materials: 'light birch veneer, chunky wool, sheepskin throws, white-painted wood, rattan accents',
         atmosphere: 'warm, inviting, cozy Nordic atmosphere',
       },
       'Cozy / Уютный': {
         mood: 'cozy eclectic bohemian interior design',
         lighting: 'warm layered lighting — floor lamps and table lamps creating pools of amber light',
-        materials: 'terracotta ceramics, plush velvet, macrame wall art, mixed wood tones, aged brass',
+        materials: 'terracotta ceramics, plush velvet, macrame, mixed wood tones, aged brass',
         atmosphere: 'rich, layered, personal and warm',
       },
       'Gaming Setup': {
         mood: 'premium gaming room interior design',
-        lighting: 'dramatic RGB LED ambient strips in blue-purple tones, focused desk lighting',
-        materials: 'matte black surfaces, tempered glass, RGB peripherals, carbon fiber texture, LED strips',
+        lighting: 'dramatic RGB LED ambient in blue-purple tones, focused desk lighting',
+        materials: 'matte black surfaces, tempered glass, RGB peripherals, carbon fiber, LED strips',
         atmosphere: 'high-tech, dramatic, immersive gaming cave',
       },
       'Индустриальный': {
-        mood: 'industrial loft interior design, urban chic',
-        lighting: 'dramatic contrast — warm Edison bulb pendants against cool daylight, deep shadows',
-        materials: 'exposed red brick, raw blackened steel, aged saddle leather, reclaimed dark wood, concrete',
-        atmosphere: 'raw, bold, sophisticated urban aesthetic',
+        mood: 'industrial loft interior design',
+        lighting: 'warm Edison bulb pendants against cool daylight, deep shadows',
+        materials: 'exposed brick, raw steel, aged leather, reclaimed dark wood, concrete',
+        atmosphere: 'raw, bold, sophisticated urban',
       },
       'Современный': {
         mood: 'contemporary modern interior design',
-        lighting: 'bright even lighting with recessed LED, clean and crisp shadows',
+        lighting: 'bright even lighting with recessed LED, clean crisp shadows',
         materials: 'glossy lacquer, chrome hardware, glass surfaces, smooth leather, neutral tones',
-        atmosphere: 'sleek, polished, sophisticated modernity',
+        atmosphere: 'sleek, polished, sophisticated',
+      },
+      'Классический': {
+        mood: 'classic traditional interior design',
+        lighting: 'warm chandelier light with soft window daylight',
+        materials: 'carved wood moldings, velvet upholstery, brass fixtures, parquet flooring, crown molding',
+        atmosphere: 'elegant, timeless, refined',
       },
     };
 
     const styleData = styleMap[style] || {
       mood: `${style} interior design`,
-      lighting: 'beautiful natural light filling the space',
+      lighting: 'beautiful natural light',
       materials: 'high-quality furniture and premium finishes',
-      atmosphere: 'elegant and comfortable living space',
+      atmosphere: 'elegant and comfortable',
     };
 
-    // Цвета стен и пола
-    const wallColorEN = colorToEN(wallColor);
-    const floorColorEN = colorToEN(floorColor);
+    const wallColorDesc  = colorToEN(wallColor);
+    const floorColorDesc = colorToEN(floorColor);
+    const accentColorDesc = colorToEN(accentColor);
 
     const wallDesc =
-      wallColorEN === 'white' ? 'crisp matte white plaster walls' :
-      wallColorEN === 'beige' ? 'warm sand beige painted walls' :
-      wallColorEN === 'light gray' ? 'sophisticated light greige walls' :
-      wallColorEN === 'warm sand' ? 'warm sand-toned textured walls' :
-      `${wallColorEN} painted walls`;
+      wallColorDesc === 'white'      ? 'crisp matte white plaster walls' :
+      wallColorDesc === 'beige'      ? 'warm sand beige painted walls' :
+      wallColorDesc === 'light gray' ? 'sophisticated light greige walls' :
+      wallColorDesc === 'warm sand'  ? 'warm sand-toned textured walls' :
+      `${wallColorDesc} painted walls`;
 
     const floorDesc =
-      floorColorEN === 'warm oak' ? 'wide-plank warm oak hardwood flooring with natural grain' :
-      floorColorEN === 'beige' ? 'light travertine stone tile flooring' :
-      floorColorEN === 'natural wood' ? 'brushed natural oak plank flooring' :
-      floorColorEN === 'white' ? 'white polished concrete flooring' :
-      `${floorColorEN} flooring`;
+      floorColorDesc === 'warm oak'    ? 'wide-plank warm oak hardwood flooring' :
+      floorColorDesc === 'beige'       ? 'light travertine stone tile flooring' :
+      floorColorDesc === 'natural wood'? 'brushed natural oak plank flooring' :
+      floorColorDesc === 'white'       ? 'white polished concrete flooring' :
+      `${floorColorDesc} flooring`;
 
-    const roomTypeEN = roomType?.toLowerCase() || 'living room';
+    const roomTypeEN = (roomType || 'living room').toLowerCase()
+      .replace('спальня', 'bedroom')
+      .replace('гостиная', 'living room')
+      .replace('кухня-гостиная', 'open-plan kitchen living room')
+      .replace('студия', 'studio apartment')
+      .replace('кабинет', 'home office');
 
+    // ── Базовый промпт ────────────────────────────────────────────────────────
     const basePrompt = `Professional architectural interior photography, ${styleData.mood}.
 ${roomTypeEN}, ${W}m wide by ${L}m deep, ${H}m ceiling height.
-${wallDesc}, ${floorDesc}, clean baseboards and trim details.
-Atmosphere: ${styleData.atmosphere}.
-Lighting: ${styleData.lighting}.
+${wallDesc}, ${floorDesc}, accent color ${accentColorDesc}, clean baseboards.
+Atmosphere: ${styleData.atmosphere}. Lighting: ${styleData.lighting}.
 Material palette: ${styleData.materials}.
 
-Furniture layout (render exactly as described, accurate product appearance):
-${furnitureDetails}
+Furniture (render each piece accurately matching its real appearance):
+${furnitureLines}
 
-${pixtralContext ? `Product appearance reference from real photos: ${pixtralContext.substring(0, 300)}` : ''}
-${wishes ? `Special design requirements: ${wishes}` : ''}
+${pixtralContext ? `Exact visual descriptions from product photos: ${pixtralContext.substring(0, 400)}` : ''}
+${wishes ? `Client requirements: ${wishes}` : ''}
 
-Technical: Shot on Phase One IQ4 150MP, 24mm tilt-shift lens, f/8, ISO 100.
-Ultra-photorealistic, 8K resolution, ray-traced global illumination, 
-physically accurate materials and reflections, accurate shadows and ambient occlusion,
-professional color grading, magazine editorial quality, no people, no text overlays.`;
+Shot on Phase One IQ4 150MP, 24mm tilt-shift lens, f/8, ISO 100.
+Ultra-photorealistic, 8K, ray-traced global illumination, physically accurate materials,
+professional color grading, magazine editorial quality, no people, no text.`;
 
     const negativePrompt = [
-      'cartoon', 'illustration', 'painting', 'sketch', 'anime', '3d render look', 'CGI',
-      'plastic looking', 'blurry', 'oversaturated', 'distorted perspective', 'fish-eye',
-      'people', 'humans', 'text', 'watermark', 'logo', 'signature',
-      'low quality', 'amateur photography', 'dark', 'overexposed', 'noise grain',
-      'ugly furniture', 'cluttered mess', 'bad proportions',
+      'cartoon', 'illustration', 'painting', 'sketch', 'anime', 'CGI look',
+      'plastic', 'blurry', 'oversaturated', 'distorted', 'fish-eye',
+      'people', 'humans', 'text', 'watermark', 'logo',
+      'low quality', 'dark', 'overexposed', 'noise', 'bad proportions',
     ].join(', ');
 
+    // ── Два варианта — разные углы ────────────────────────────────────────────
     const variants = [
-      `${basePrompt} Camera angle: wide establishing shot from corner near doorway, showing complete room layout, all furniture visible, slight upward angle.`,
-      `${basePrompt} Camera angle: dynamic 3/4 perspective from elevated position (eye level 1.5m), diagonal composition showing depth and spatial relationship between furniture pieces.`,
+      `${basePrompt} Camera: wide establishing shot from corner near doorway, showing complete room, slight upward angle.`,
+      `${basePrompt} Camera: dynamic 3/4 perspective from 1.5m height, diagonal composition showing depth between furniture.`,
     ];
-
-    console.log('Prompt length:', basePrompt.length);
 
     const images: string[] = [];
 
     for (const promptVariant of variants) {
       const seed = Math.floor(Math.random() * 9999999);
       const encodedPrompt = encodeURIComponent(promptVariant);
-      const encodedNeg = encodeURIComponent(negativePrompt);
+      const encodedNeg    = encodeURIComponent(negativePrompt);
 
-      // Пробуем flux-pro сначала, потом обычный flux
       const urls = [
         `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1344&height=896&nologo=true&enhance=true&seed=${seed}&model=flux-pro&negative=${encodedNeg}`,
         `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1344&height=896&nologo=true&enhance=true&seed=${seed}&model=flux&negative=${encodedNeg}`,
@@ -237,7 +267,7 @@ professional color grading, magazine editorial quality, no people, no text overl
       for (const url of urls) {
         if (generated) break;
         try {
-          console.log('Trying URL model:', url.includes('flux-pro') ? 'flux-pro' : 'flux');
+          console.log('Trying:', url.includes('flux-pro') ? 'flux-pro' : 'flux');
           const imgRes = await fetch(url, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
             signal: AbortSignal.timeout(60000),
@@ -245,12 +275,12 @@ professional color grading, magazine editorial quality, no people, no text overl
           if (imgRes.ok) {
             const buffer = await imgRes.arrayBuffer();
             const base64 = Buffer.from(buffer).toString('base64');
-            const mimeType = imgRes.headers.get('content-type') || 'image/jpeg';
-            images.push(`data:${mimeType};base64,${base64}`);
-            console.log('✅ Image generated, size:', Math.round(buffer.byteLength / 1024), 'KB');
+            const mime = imgRes.headers.get('content-type') || 'image/jpeg';
+            images.push(`data:${mime};base64,${base64}`);
+            console.log('✅ Image generated:', Math.round(buffer.byteLength / 1024), 'KB');
             generated = true;
           } else {
-            console.error('❌ Pollinations failed:', imgRes.status, url.includes('flux-pro') ? 'flux-pro' : 'flux');
+            console.error('❌ Pollinations failed:', imgRes.status);
           }
         } catch (e) {
           console.error('❌ Fetch error:', e);

@@ -5,566 +5,532 @@ import { useSearchParams } from 'next/navigation';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
-// ─── Стили комнаты ────────────────────────────────────────────────────────────
-const STYLES: Record<string, any> = {
-  'Минимализм': {
-    bg: 0x1a1a22, wall: 0xF2EDE6, floor: 0xC8B89A, floorAlt: 0xB8A88A,
-    ceiling: 0xF8F6F2, trim: 0xEEEAE4,
-    ambient: { color: 0xFFF5E6, int: 0.6 },
-    sun: { color: 0xFFF0D0, int: 1.5 },
-    fill: { color: 0xE8F0FF, int: 0.4 },
-    lamp: { color: 0xFFAA44, int: 3 },
-    window: { color: 0xCCE8FF, int: 5 },
-  },
-  'Скандинавский': {
-    bg: 0x141E2E, wall: 0xFFFFFF, floor: 0xD4C4A8, floorAlt: 0xC4B498,
-    ceiling: 0xFAFAFA, trim: 0xF0F0F0,
-    ambient: { color: 0xF0F8FF, int: 0.7 },
-    sun: { color: 0xFFFFFF, int: 1.3 },
-    fill: { color: 0xD0E8FF, int: 0.5 },
-    lamp: { color: 0x88CCFF, int: 2 },
-    window: { color: 0xE8F4FF, int: 6 },
-  },
-  'Cozy / Уютный': {
-    bg: 0x0E0A06, wall: 0xE8D5B0, floor: 0x7A5C3A, floorAlt: 0x6A4C2A,
-    ceiling: 0xF0E6D0, trim: 0xD8C8A8,
-    ambient: { color: 0xFF9944, int: 0.5 },
-    sun: { color: 0xFFCC66, int: 1.0 },
-    fill: { color: 0xFF6600, int: 0.2 },
-    lamp: { color: 0xFF7700, int: 4 },
-    window: { color: 0xFFAA55, int: 3 },
-  },
-  'Gaming Setup': {
-    bg: 0x050510, wall: 0x0D0D1A, floor: 0x1A1A2E, floorAlt: 0x111120,
-    ceiling: 0x080810, trim: 0x1A1A2E,
-    ambient: { color: 0x2200FF, int: 0.3 },
-    sun: { color: 0x8866FF, int: 0.6 },
-    fill: { color: 0x00FFFF, int: 0.3 },
-    lamp: { color: 0x7F77DD, int: 5 },
-    window: { color: 0x5533FF, int: 3 },
-  },
-  'Индустриальный': {
-    bg: 0x0C0C0C, wall: 0x6A6A6A, floor: 0x3D3D3D, floorAlt: 0x2A2A2A,
-    ceiling: 0x555555, trim: 0x444444,
-    ambient: { color: 0xFFA060, int: 0.4 },
-    sun: { color: 0xFFD0A0, int: 1.2 },
-    fill: { color: 0xFF8844, int: 0.3 },
-    lamp: { color: 0xFF6600, int: 3.5 },
-    window: { color: 0xFFCC88, int: 3 },
-  },
-};
+// ─── helpers ────────────────────────────────────────────────────────────────
+const hex = (s: string | undefined, fallback: number): number =>
+  s ? parseInt(s.replace('#', ''), 16) : fallback;
 
-function hexToInt(hex: string): number {
-  return parseInt(hex.replace('#', ''), 16);
+const mat = (color: number, roughness = 0.75, metalness = 0.0) =>
+  new THREE.MeshStandardMaterial({ color, roughness, metalness });
+
+const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
+const cyl = (rt: number, rb: number, h: number, seg = 12) => new THREE.CylinderGeometry(rt, rb, h, seg);
+
+function add(g: THREE.Group, geo: THREE.BufferGeometry, m: THREE.Material, sx = 0, sy = 0, sz = 0) {
+  const o = new THREE.Mesh(geo, m);
+  o.position.set(sx, sy, sz);
+  o.castShadow = true;
+  o.receiveShadow = true;
+  g.add(o);
+  return o;
 }
 
-// ─── Процедурные 3D модели мебели ────────────────────────────────────────────
-function buildBed(scene: THREE.Scene, x: number, z: number, w: number, d: number, color: number) {
-  const mat = (c: number, r = 0.7) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
-  // Основа
-  const base = new THREE.Mesh(new THREE.BoxGeometry(w, 0.22, d), mat(color));
-  base.position.set(x, 0.11, z); base.castShadow = true; scene.add(base);
-  // Матрас
-  const mattress = new THREE.Mesh(new THREE.BoxGeometry(w - 0.04, 0.18, d - 0.1), mat(0xF5F0E8, 0.9));
-  mattress.position.set(x, 0.31, z + 0.02); mattress.castShadow = true; scene.add(mattress);
-  // Изголовье
-  const head = new THREE.Mesh(new THREE.BoxGeometry(w, 0.6, 0.08), mat(color));
-  head.position.set(x, 0.52, z - d / 2 + 0.04); head.castShadow = true; scene.add(head);
-  // Подушки
-  [-0.22, 0.22].forEach(ox => {
-    if (Math.abs(ox) < w / 2 - 0.1) {
-      const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.1, 0.28), mat(0xFFFAF5, 0.95));
-      pillow.position.set(x + ox, 0.45, z - d / 2 + 0.25); scene.add(pillow);
-    }
+// Snap wall-hugging furniture to the correct wall based on rotation
+// rot 0   → back  wall z=0  → z = depth/2
+// rot 90  → right wall x=W  → x = W - depth/2
+// rot 180 → front wall z=L  → z = L - depth/2
+// rot 270 → left  wall x=0  → x = depth/2
+function snapWall(px: number, pz: number, sw: number, sd: number, rot: number, W: number, L: number): [number, number] {
+  const G = 0.015;
+  if (rot === 0)   return [px,       sd/2 + G];
+  if (rot === 90)  return [W-sd/2-G, pz];
+  if (rot === 180) return [px,       L-sd/2-G];
+  if (rot === 270) return [sd/2+G,   pz];
+  return [px, pz];
+}
+
+const WALL_TYPES = new Set(['bed','wardrobe','shelf','desk','sofa']);
+
+// ── BED ──────────────────────────────────────────────────────────────────────
+function addBed(g: THREE.Group, w: number, d: number, c: number) {
+  const wood = mat(c, 0.72);
+  const fabC = Math.min(0xFFFFFF, c + 0x303030);
+  // frame base
+  add(g, box(w, 0.08, d), wood, 0, 0.04, 0);
+  // legs
+  const lh = 0.18;
+  [[-w/2+0.07,-d/2+0.07],[w/2-0.07,-d/2+0.07],
+   [-w/2+0.07, d/2-0.07],[w/2-0.07, d/2-0.07]].forEach(([lx,lz]) => {
+    add(g, box(0.06,lh,0.06), wood, lx, -lh/2, lz);
   });
-  // Одеяло — всегда контрастный цвет
-  const blanketColor = color > 0x888888 ? Math.max(0x333333, color - 0x333333) : Math.min(0xDDDDDD, color + 0x333333);
-  const blanket = new THREE.Mesh(new THREE.BoxGeometry(w - 0.06, 0.08, d * 0.55), mat(blanketColor, 0.95));
-  blanket.position.set(x, 0.44, z + d * 0.12); scene.add(blanket);
-  // Ножки
-  const legColor = Math.min(0xFFFFFF, Math.max(0x222222, color));
-  [[-w/2+0.08, -d/2+0.08], [w/2-0.08, -d/2+0.08], [-w/2+0.08, d/2-0.08], [w/2-0.08, d/2-0.08]].forEach(([lx, lz]) => {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.07), mat(legColor));
-    leg.position.set(x + lx, 0.05, z + lz); scene.add(leg);
+  // mattress
+  add(g, box(w-0.06,0.20,d-0.04), mat(0xF8F5F0,0.95), 0, 0.20, 0);
+  // pillows
+  const offsets = w > 1.45 ? [-0.32, 0.32] : [0];
+  offsets.forEach(ox => add(g, box(0.58,0.10,0.44), mat(0xFFFCF8,0.97), ox, 0.37, -d/2+0.30));
+  // blanket
+  add(g, box(w-0.08,0.09,d*0.55), mat(Math.max(0x202020, c-0x3A3A3A),0.95), 0, 0.38, d*0.10);
+  // headboard
+  add(g, box(w,0.55,0.08), wood, 0, 0.44, -d/2+0.04);
+  add(g, box(w-0.08,0.40,0.04), mat(fabC,0.92), 0, 0.44, -d/2+0.085);
+}
+
+// ── SOFA ─────────────────────────────────────────────────────────────────────
+function addSofa(g: THREE.Group, w: number, d: number, c: number) {
+  const fab  = mat(c, 0.88);
+  const dark = mat(Math.max(0, c-0x1A1A1A), 0.70);
+  const leg  = mat(0x5A5A5A, 0.35, 0.65);
+  add(g, box(w,0.26,d), dark, 0, 0.13, 0);
+  const sw = (w-0.28)/3;
+  for (let i=0;i<3;i++) {
+    const cx = -w/2+0.14+sw/2+i*sw;
+    add(g, box(sw-0.025,0.17,d*0.56), fab, cx, 0.39, d*0.12);
+    add(g, box(sw-0.03,0.42,0.18), fab, cx, 0.54, -d/2+0.13);
+  }
+  [-w/2+0.07, w/2-0.07].forEach(ax => add(g, box(0.12,0.48,d), dark, ax, 0.37, 0));
+  [[-w/2+0.08,-d/2+0.08],[w/2-0.08,-d/2+0.08],
+   [-w/2+0.08, d/2-0.08],[w/2-0.08, d/2-0.08]].forEach(([lx,lz]) => {
+    add(g, cyl(0.025,0.02,0.10,8), leg, lx, -0.05, lz);
   });
 }
 
-function buildSofa(scene: THREE.Scene, x: number, z: number, w: number, d: number, color: number) {
-  const mat = (c: number) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85 });
-  const base = new THREE.Mesh(new THREE.BoxGeometry(w, 0.22, d), mat(Math.max(0x0A0A0A, color) - 0x0A0A0A));
-  base.position.set(x, 0.11, z); base.castShadow = true; scene.add(base);
-  const seat = new THREE.Mesh(new THREE.BoxGeometry(w - 0.1, 0.18, d * 0.58), mat(color));
-  seat.position.set(x, 0.31, z + d * 0.18); seat.castShadow = true; scene.add(seat);
-  const back = new THREE.Mesh(new THREE.BoxGeometry(w - 0.08, 0.5, 0.14), mat(color));
-  back.position.set(x, 0.56, z - d * 0.32); back.castShadow = true; scene.add(back);
-  [-w/2 + 0.09, w/2 - 0.09].forEach(ax => {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.32, d * 0.72), mat(Math.max(0x080808, color) - 0x080808));
-    arm.position.set(x + ax, 0.38, z + d * 0.04); scene.add(arm);
+// ── WARDROBE ─────────────────────────────────────────────────────────────────
+function addWardrobe(g: THREE.Group, w: number, d: number, h: number, c: number) {
+  const wood  = mat(c, 0.65);
+  const panel = mat(Math.min(0xFFFFFF,c+0x0C0C0C), 0.45);
+  const metal = mat(0xCCCCCC, 0.2, 0.8);
+  add(g, box(w,h,d), wood, 0, h/2, 0);
+  add(g, box(w,0.06,d+0.01), mat(Math.max(0,c-0x151515),0.8), 0, 0.03, 0);
+  const dw = w/2-0.01;
+  [-dw/2-0.005, dw/2+0.005].forEach(ox => {
+    add(g, box(dw-0.02,h-0.04,0.02), panel, ox, h/2, d/2+0.01);
+    const hnd = new THREE.Mesh(cyl(0.008,0.008,0.13,8), metal);
+    hnd.rotation.z = Math.PI/2;
+    hnd.position.set(ox+(ox>0?-0.14:0.14), h*0.52, d/2+0.026);
+    g.add(hnd);
   });
-  // Подушки сиденья
-  const segW = (w - 0.32) / 3;
-  for (let i = 0; i < 3; i++) {
-    const cx = x - (w - 0.32) / 2 + segW * i + segW / 2;
-    const cushion = new THREE.Mesh(new THREE.BoxGeometry(segW - 0.03, 0.12, d * 0.52), mat(Math.min(0xFFFFFF, color + 0x080808)));
-    cushion.position.set(cx, 0.46, z + d * 0.18); scene.add(cushion);
+}
+
+// ── DESK ─────────────────────────────────────────────────────────────────────
+function addDesk(g: THREE.Group, w: number, d: number, c: number) {
+  const wood = mat(c, 0.65);
+  const dark = mat(Math.max(0,c-0x181818), 0.55);
+  const leg  = mat(Math.max(0,c-0x0A0A0A), 0.50, 0.12);
+  add(g, box(w,0.038,d), wood, 0, 0.019, 0);
+  [[-w/2+0.04,-d/2+0.04],[w/2-0.04,-d/2+0.04],
+   [-w/2+0.04, d/2-0.04],[w/2-0.04, d/2-0.04]].forEach(([lx,lz]) => {
+    add(g, box(0.04,0.71,0.04), leg, lx, -0.355, lz);
+  });
+  add(g, box(w*0.42,0.18,d*0.50), dark, w*0.22, -0.13, 0);
+}
+
+// ── CHAIR ────────────────────────────────────────────────────────────────────
+function addChair(g: THREE.Group, c: number) {
+  const fab = mat(c, 0.85);
+  const leg = mat(Math.max(0,c-0x101010), 0.50, 0.2);
+  add(g, box(0.48,0.09,0.46), fab, 0, 0.045, 0);
+  add(g, box(0.48,0.46,0.07), fab, 0, 0.30, -0.20);
+  add(g, box(0.44,0.06,0.42), mat(Math.min(0xFFFFFF,c+0x101010),0.9), 0, 0.105, 0.01);
+  [[-0.19,-0.19],[0.19,-0.19],[-0.19,0.19],[0.19,0.19]].forEach(([lx,lz]) => {
+    add(g, box(0.035,0.40,0.035), leg, lx, -0.20, lz);
+  });
+}
+
+// ── TABLE ────────────────────────────────────────────────────────────────────
+function addTable(g: THREE.Group, w: number, d: number, c: number) {
+  const wood = mat(c, 0.68);
+  const leg  = mat(Math.max(0,c-0x141414), 0.55, 0.1);
+  add(g, box(w,0.04,d), wood, 0, 0.02, 0);
+  [[-w/2+0.05,-d/2+0.05],[w/2-0.05,-d/2+0.05],
+   [-w/2+0.05, d/2-0.05],[w/2-0.05, d/2-0.05]].forEach(([lx,lz]) => {
+    add(g, box(0.04,0.38,0.04), leg, lx, -0.19, lz);
+  });
+}
+
+// ── SHELF ────────────────────────────────────────────────────────────────────
+function addShelf(g: THREE.Group, w: number, d: number, h: number, c: number) {
+  const wood = mat(c, 0.65);
+  add(g, box(0.02,h,d), wood, -w/2+0.01, h/2, 0);
+  add(g, box(0.02,h,d), wood,  w/2-0.01, h/2, 0);
+  add(g, box(w-0.02,h,0.018), mat(Math.max(0,c-0x101010),0.8), 0, h/2, -d/2+0.009);
+  const count = Math.max(2, Math.round(h/0.32));
+  for (let i=0;i<=count;i++) {
+    add(g, box(w-0.04,0.022,d-0.01), wood, 0, (i/count)*(h-0.04)+0.011, 0);
   }
 }
 
-function buildWardrobe(scene: THREE.Scene, x: number, z: number, w: number, d: number, h: number, color: number) {
-  const mat = (c: number, r = 0.6) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
-  body.position.set(x, h / 2, z); body.castShadow = true; scene.add(body);
-  // Двери
-  const doorW = w / 2 - 0.01;
-  [-doorW / 2 - 0.005, doorW / 2 + 0.005].forEach(ox => {
-    const door = new THREE.Mesh(new THREE.BoxGeometry(doorW, h - 0.04, 0.03), mat(Math.min(0xFFFFFF, color + 0x0A0A0A), 0.4));
-    door.position.set(x + ox, h / 2, z + d / 2 + 0.015); scene.add(door);
-    // Ручка
-    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.15, 8), mat(0xAAAAAA, 0.3));
-    handle.rotation.z = Math.PI / 2;
-    handle.position.set(x + ox + (ox > 0 ? -0.12 : 0.12), h * 0.5, z + d / 2 + 0.04);
-    scene.add(handle);
-  });
+// ── NIGHTSTAND ───────────────────────────────────────────────────────────────
+function addNightstand(g: THREE.Group, w: number, d: number, h: number, c: number) {
+  const wood  = mat(c, 0.65);
+  const panel = mat(Math.min(0xFFFFFF,c+0x0A0A0A), 0.45);
+  const metal = mat(0xBBBBBB, 0.2, 0.8);
+  add(g, box(w,h,d), wood, 0, h/2, 0);
+  add(g, box(w+0.01,0.014,d+0.01), mat(Math.min(0xFFFFFF,c+0x060606),0.55), 0, h+0.007, 0);
+  add(g, box(w-0.04,h*0.36,d*0.02), panel, 0, h*0.62, d/2+0.01);
+  const hnd = new THREE.Mesh(cyl(0.007,0.007,0.11,8), metal);
+  hnd.rotation.z = Math.PI/2;
+  hnd.position.set(0, h*0.62, d/2+0.026);
+  g.add(hnd);
 }
 
-function buildDesk(scene: THREE.Scene, x: number, z: number, w: number, d: number, color: number) {
-  const mat = (c: number, r = 0.6) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
-  const top = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, d), mat(color));
-  top.position.set(x, 0.75, z); top.castShadow = true; scene.add(top);
-  [[-w/2+0.05, -d/2+0.05], [w/2-0.05, -d/2+0.05], [-w/2+0.05, d/2-0.05], [w/2-0.05, d/2-0.05]].forEach(([lx, lz]) => {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.73, 0.05), mat(Math.max(0x111111, color) - 0x111111));
-    leg.position.set(x + lx, 0.365, z + lz); scene.add(leg);
-  });
-  // Ящик
-  const drawer = new THREE.Mesh(new THREE.BoxGeometry(w * 0.4, 0.15, d * 0.55), mat(Math.max(0x080808, color) - 0x080808));
-  drawer.position.set(x + w * 0.25, 0.57, z); scene.add(drawer);
+// ── LAMP ─────────────────────────────────────────────────────────────────────
+function addLamp(g: THREE.Group, c: number) {
+  const metal = mat(Math.min(0xFFFFFF,c+0x202020), 0.3, 0.7);
+  add(g, cyl(0.13,0.16,0.04,16), metal, 0, 0.02, 0);
+  add(g, cyl(0.016,0.016,1.32,8), metal, 0, 0.70, 0);
+  const geo = new THREE.CylinderGeometry(0.06,0.21,0.28,16,1,true);
+  const sm = new THREE.Mesh(geo, mat(0xF2E4C4,0.85));
+  sm.position.set(0,1.50,0); sm.castShadow=true; g.add(sm);
+  add(g, new THREE.CircleGeometry(0.06,12), mat(0xF5E8CA,0.88), 0, 1.64, 0);
+  const bulb = new THREE.PointLight(0xFFBB66,1.6,3.2);
+  bulb.position.set(0,1.36,0); g.add(bulb);
 }
 
-function buildChair(scene: THREE.Scene, x: number, z: number, color: number) {
-  const mat = (c: number) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 });
-  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, 0.48), mat(color));
-  seat.position.set(x, 0.44, z); scene.add(seat);
-  const back = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.42, 0.06), mat(color));
-  back.position.set(x, 0.73, z - 0.21); scene.add(back);
-  [[-0.2, -0.19], [0.2, -0.19], [-0.2, 0.19], [0.2, 0.19]].forEach(([lx, lz]) => {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.44, 0.04), mat(Math.max(0x111111, color) - 0x111111));
-    leg.position.set(x + lx, 0.22, z + lz); scene.add(leg);
-  });
-}
-
-function buildTable(scene: THREE.Scene, x: number, z: number, w: number, d: number, color: number) {
-  const mat = (c: number) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.65 });
-  const top = new THREE.Mesh(new THREE.BoxGeometry(w, 0.05, d), mat(color));
-  top.position.set(x, 0.44, z); top.castShadow = true; scene.add(top);
-  [[-w/2+0.06, -d/2+0.06], [w/2-0.06, -d/2+0.06], [-w/2+0.06, d/2-0.06], [w/2-0.06, d/2-0.06]].forEach(([lx, lz]) => {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.42, 0.04), mat(Math.max(0x111111, color) - 0x111111));
-    leg.position.set(x + lx, 0.22, z + lz); scene.add(leg);
-  });
-}
-
-function buildShelf(scene: THREE.Scene, x: number, z: number, w: number, d: number, h: number, color: number) {
-  const mat = (c: number) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.65 });
-  const back = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.02), mat(Math.max(0x0A0A0A, color) - 0x0A0A0A));
-  back.position.set(x, h / 2, z - d / 2 + 0.01); scene.add(back);
-  const shelves = Math.floor(h / 0.35);
-  for (let i = 0; i <= shelves; i++) {
-    const shelf = new THREE.Mesh(new THREE.BoxGeometry(w, 0.025, d), mat(color));
-    shelf.position.set(x, (i / shelves) * (h - 0.05) + 0.025, z);
-    shelf.castShadow = true; scene.add(shelf);
-  }
-  const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.025, h, d), mat(color));
-  sideL.position.set(x - w / 2 + 0.012, h / 2, z); scene.add(sideL);
-  const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.025, h, d), mat(color));
-  sideR.position.set(x + w / 2 - 0.012, h / 2, z); scene.add(sideR);
-}
-
-function buildLamp(scene: THREE.Scene, x: number, z: number, _color: number) {
-  const mat = (c: number, r = 0.5) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.04, 12), mat(0x888888, 0.4));
-  base.position.set(x, 0.02, z); scene.add(base);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1.4, 8), mat(0x999999, 0.3));
-  pole.position.set(x, 0.72, z); scene.add(pole);
-  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.30, 16, 1, true), mat(0xF5E8C8, 0.85));
-  shade.position.set(x, 1.56, z); scene.add(shade);
-  const shadeTop = new THREE.Mesh(new THREE.CircleGeometry(0.08, 12), mat(0xE8D8A8));
-  shadeTop.rotation.x = -Math.PI / 2;
-  shadeTop.position.set(x, 1.71, z); scene.add(shadeTop);
-  const bulb = new THREE.PointLight(0xFFAA44, 1.8, 3.5);
-  bulb.position.set(x, 1.42, z); scene.add(bulb);
-}
-
-function buildPlant(scene: THREE.Scene, x: number, z: number, color: number) {
-  const matPot = new THREE.MeshStandardMaterial({ color: color || 0x8B6914, roughness: 0.85 });
-  const matLeaf = new THREE.MeshStandardMaterial({ color: 0x2D6A2D, roughness: 0.9 });
-  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.1, 0.22, 12), matPot);
-  pot.position.set(x, 0.11, z); scene.add(pot);
-  const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.02, 12), new THREE.MeshStandardMaterial({ color: 0x3A2A1A }));
-  soil.position.set(x, 0.23, z); scene.add(soil);
-  for (let i = 0; i < 7; i++) {
-    const angle = (i / 7) * Math.PI * 2;
-    const r = 0.06 + Math.random() * 0.08;
-    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.12 + Math.random() * 0.08, 6, 5), matLeaf);
-    leaf.scale.y = 1.8;
-    leaf.position.set(x + Math.cos(angle) * r, 0.35 + Math.random() * 0.25, z + Math.sin(angle) * r);
-    scene.add(leaf);
+// ── PLANT ────────────────────────────────────────────────────────────────────
+function addPlant(g: THREE.Group, c: number) {
+  add(g, cyl(0.11,0.08,0.20,12), mat(c||0x8B6A2A,0.88), 0, 0.10, 0);
+  add(g, cyl(0.10,0.10,0.018,12), mat(0x3A2A18), 0, 0.209, 0);
+  const lm = mat(0x2D6A35,0.9);
+  for (let i=0;i<8;i++) {
+    const a=(i/8)*Math.PI*2, r=0.055+(i%3)*0.04;
+    const o=new THREE.Mesh(new THREE.SphereGeometry(0.11+(i%3)*0.03,6,5),lm);
+    o.scale.y=1.9; o.position.set(Math.cos(a)*r,0.34+(i%3)*0.07,Math.sin(a)*r);
+    o.castShadow=true; g.add(o);
   }
 }
 
-function buildRug(scene: THREE.Scene, x: number, z: number, w: number, d: number, color: number) {
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.98 });
-  const rug = new THREE.Mesh(new THREE.BoxGeometry(w, 0.018, d), mat);
-  rug.position.set(x, 0.009, z); rug.receiveShadow = true; scene.add(rug);
-  // Бордюр
-  const borderMat = new THREE.MeshStandardMaterial({ color: Math.max(0x111111, color - 0x202020), roughness: 0.98 });
-  const bw = 0.06;
-  [[w, bw, 0, -d/2 + bw/2], [w, bw, 0, d/2 - bw/2], [bw, d - bw*2, -w/2 + bw/2, 0], [bw, d - bw*2, w/2 - bw/2, 0]].forEach(([bW, bD, bx, bz]) => {
-    const border = new THREE.Mesh(new THREE.BoxGeometry(bW, 0.02, bD), borderMat);
-    border.position.set(x + bx, 0.011, z + bz); scene.add(border);
+// ── RUG ──────────────────────────────────────────────────────────────────────
+function addRug(g: THREE.Group, w: number, d: number, c: number) {
+  add(g, box(w,0.016,d), mat(c,0.98), 0, 0.008, 0);
+  const bw=0.055, bc=Math.max(0,c-0x252525);
+  [[w,bw,0,d/2-bw/2],[w,bw,0,-d/2+bw/2],
+   [bw,d-bw*2,-w/2+bw/2,0],[bw,d-bw*2,w/2-bw/2,0]].forEach(([W,D,X,Z]) => {
+    add(g, box(W as number,0.018,D as number), mat(bc,0.98), X as number, 0.009, Z as number);
   });
 }
 
-function buildNightstand(scene: THREE.Scene, x: number, z: number, color: number) {
-  const mat = (c: number) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.65 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.52, 0.4), mat(color));
-  body.position.set(x, 0.26, z); body.castShadow = true; scene.add(body);
-  const drawer = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.2, 0.38), mat(Math.min(0xFFFFFF, color + 0x080808)));
-  drawer.position.set(x, 0.36, z + 0.01); scene.add(drawer);
-  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.1, 8), mat(0xAAAAAA));
-  handle.rotation.z = Math.PI / 2;
-  handle.position.set(x, 0.36, z + 0.21); scene.add(handle);
-}
+// ── MASTER PLACER ────────────────────────────────────────────────────────────
+function place(scene: THREE.Scene, item: any, roomW: number, roomL: number) {
+  const c  = hex(item.color, 0x8B7355);
+  const iw = Math.max(0.3, Math.min(item.width  ?? 1.0, roomW*0.9));
+  const id = Math.max(0.3, Math.min(item.depth  ?? 0.6, roomL*0.9));
+  const ih = Math.max(0.3, item.height ?? 0.8);
 
-function buildFurnitureItem(scene: THREE.Scene, item: any, W: number, L: number) {
-  const color = item.color ? hexToInt(item.color) : 0x8B7355;
-  const w = Math.max(0.3, Math.min(item.width ?? 1.0, W * 0.75));
-  const d = Math.max(0.3, Math.min(item.depth ?? 0.6, L * 0.75));
-  const h = Math.max(0.3, item.height ?? 0.8);
-  const rawX = typeof item.x === 'number' && !isNaN(item.x) ? item.x : W / 2;
-  const rawZ = typeof item.z === 'number' && !isNaN(item.z) ? item.z : L / 2;
-  const x = Math.max(w / 2 + 0.15, Math.min(W - w / 2 - 0.15, rawX));
-  const z = Math.max(d / 2 + 0.15, Math.min(L - d / 2 - 0.15, rawZ));
+  const rotDeg = ((item.rotation ?? 0) % 360 + 360) % 360;
+  const rot90  = rotDeg === 90 || rotDeg === 270;
+  const snapW  = rot90 ? id : iw;
+  const snapD  = rot90 ? iw : id;
 
-  // Группа для поворота мебели
-  const group = new THREE.Group();
-  group.position.set(x, 0, z);
-  const rotDeg = typeof item.rotation === 'number' ? item.rotation : 0;
-  group.rotation.y = (rotDeg * Math.PI) / 180;
-  scene.add(group);
+  let px = typeof item.x==='number' && !isNaN(item.x) ? item.x : roomW/2;
+  let pz = typeof item.z==='number' && !isNaN(item.z) ? item.z : roomL/2;
 
-  // Прокси-сцена: смещаем объекты относительно группы
-  const proxy: any = {
-    add: (o: THREE.Object3D) => {
-      o.position.x -= x;
-      o.position.z -= z;
-      group.add(o);
-    },
-    fog: scene.fog,
-  };
+  // clamp inside room
+  px = Math.max(snapW/2+0.02, Math.min(roomW-snapW/2-0.02, px));
+  pz = Math.max(snapD/2+0.02, Math.min(roomL-snapD/2-0.02, pz));
+
+  if (WALL_TYPES.has(item.type)) [px, pz] = snapWall(px, pz, snapW, snapD, rotDeg, roomW, roomL);
+
+  const g = new THREE.Group();
+  g.position.set(px, 0, pz);
+  g.rotation.y = (rotDeg * Math.PI) / 180;
+  scene.add(g);
 
   switch (item.type) {
-    case 'bed':        buildBed(proxy, x, z, w, d, color); break;
-    case 'sofa':       buildSofa(proxy, x, z, w, d, color); break;
-    case 'wardrobe':   buildWardrobe(proxy, x, z, w, d, Math.max(1.6, h), color); break;
-    case 'desk':       buildDesk(proxy, x, z, w, d, color); break;
-    case 'chair':      buildChair(proxy, x, z, color); break;
-    case 'table':      buildTable(proxy, x, z, w, d, color); break;
-    case 'shelf':      buildShelf(proxy, x, z, w, d, Math.max(1.4, h), color); break;
-    case 'lamp':       buildLamp(proxy, x, z, color); break;
-    case 'plant':      buildPlant(proxy, x, z, color); break;
-    case 'rug':        buildRug(proxy, x, z, w, d, color); break;
-    case 'nightstand': buildNightstand(proxy, x, z, color); break;
-    default: {
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(w, h, d),
-        new THREE.MeshStandardMaterial({ color, roughness: 0.7 })
-      );
-      mesh.position.set(0, h / 2, 0);
-      mesh.castShadow = true;
-      group.add(mesh);
-    }
+    case 'bed':        addBed(g, iw, id, c);                         break;
+    case 'sofa':       addSofa(g, iw, id, c);                        break;
+    case 'wardrobe':   addWardrobe(g, iw, id, Math.max(1.6,ih), c);  break;
+    case 'desk':       addDesk(g, iw, id, c);                        break;
+    case 'chair':      addChair(g, c);                                break;
+    case 'table':      addTable(g, iw, id, c);                       break;
+    case 'shelf':      addShelf(g, iw, id, Math.max(1.4,ih), c);     break;
+    case 'lamp':       addLamp(g, c);                                 break;
+    case 'plant':      addPlant(g, c);                                break;
+    case 'rug':        addRug(g, iw, id, c);                         break;
+    case 'nightstand': addNightstand(g, iw, id, Math.max(0.5,ih), c);break;
+    default:           add(g, box(iw,ih,id), mat(c), 0, ih/2, 0);
   }
 }
 
-// ─── Основной компонент ───────────────────────────────────────────────────────
+// ── VIEWER ───────────────────────────────────────────────────────────────────
 function ViewerContent() {
-  const mountRef = useRef<HTMLDivElement>(null);
-  const searchParams = useSearchParams();
-  const [aiDesign, setAiDesign] = useState<any>(null);
-  const [showToast, setShowToast] = useState(false);
+  const mountRef     = useRef<HTMLDivElement>(null);
+  const sp           = useSearchParams();
+  const [design, setDesign]         = useState<any>(null);
+  const [selected, setSelected]     = useState<number|null>(null);
+  const [showConcept, setShowConcept] = useState(false);
 
-  const width  = parseFloat(searchParams.get('width')  || '4');
-  const length = parseFloat(searchParams.get('length') || '5');
-  const height = parseFloat(searchParams.get('height') || '2.7');
-  const style  = searchParams.get('style') || 'Минимализм';
+  const W  = parseFloat(sp.get('width')  || '4');
+  const L  = parseFloat(sp.get('length') || '5');
+  const H  = parseFloat(sp.get('height') || '2.7');
+  const SN = sp.get('style') || 'Минимализм';
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('roomDesign');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setAiDesign(parsed);
-        if (parsed.concept) { setShowToast(true); setTimeout(() => setShowToast(false), 7000); }
-      }
-    } catch {}
+    try { const s=localStorage.getItem('roomDesign'); if(s) setDesign(JSON.parse(s)); } catch {}
   }, []);
 
   useEffect(() => {
     if (!mountRef.current) return;
-    const S = STYLES[style] || STYLES['Минимализм'];
-    const cW = mountRef.current.clientWidth;
-    const cH = mountRef.current.clientHeight;
+    const el = mountRef.current;
+    const cW = el.clientWidth, cH = el.clientHeight;
+
+    let d: any = null;
+    try { const s=localStorage.getItem('roomDesign'); if(s) d=JSON.parse(s); } catch {}
+
+    const wallC  = hex(d?.colors?.walls,   0xF0EBE3);
+    const floorC = hex(d?.colors?.floor,   0xC5B494);
+    const ceilC  = hex(d?.colors?.ceiling, 0xF8F6F2);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(S.bg);
-    scene.fog = new THREE.FogExp2(S.bg, 0.025);
+    scene.background = new THREE.Color(0x0E0E16);
+    scene.fog = new THREE.FogExp2(0x0E0E16, 0.016);
 
-    const camera = new THREE.PerspectiveCamera(50, cW / cH, 0.1, 100);
-    camera.position.set(width * 0.9, height * 1.1, length * 1.0);
+    const camera = new THREE.PerspectiveCamera(48, cW/cH, 0.1, 120);
+    camera.position.set(W*0.85, H*1.35, L*1.15);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(cW, cH);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowMap;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
-    mountRef.current.appendChild(renderer.domElement);
+    renderer.toneMappingExposure = 1.15;
+    el.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
-    controls.maxPolarAngle = Math.PI / 2.05;
-    controls.minDistance = 1.5;
-    controls.maxDistance = Math.max(width, length) * 2.8;
-    controls.target.set(width / 2, height * 0.25, length / 2);
+    controls.dampingFactor = 0.055;
+    controls.maxPolarAngle = Math.PI/2.02;
+    controls.minDistance   = 1.2;
+    controls.maxDistance   = Math.max(W,L)*3.2;
+    controls.target.set(W/2, H*0.22, L/2);
 
-    // ── Освещение ──
-    scene.add(new THREE.AmbientLight(0xFFFFFF, 0.5));
-    const sun = new THREE.DirectionalLight(0xFFF8F0, 1.2);
-    sun.position.set(width * 0.6, height * 2.2, length * 0.4);
+    // ── Lights ──
+    scene.add(new THREE.AmbientLight(0xFFFFFF, 0.55));
+    const sun = new THREE.DirectionalLight(0xFFF8F0, 1.3);
+    sun.position.set(W*0.6, H*2.4, L*0.35);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.left   = -width * 0.5; sun.shadow.camera.right = width * 1.5;
-    sun.shadow.camera.top    = height * 2;   sun.shadow.camera.bottom = -0.5;
-    sun.shadow.bias = -0.0005;
+    sun.shadow.camera.left = -W*0.5; sun.shadow.camera.right = W*1.5;
+    sun.shadow.camera.top  =  H*2.2; sun.shadow.camera.bottom = -0.5;
+    sun.shadow.bias = -0.0004;
     scene.add(sun);
-    // Нейтральный fill свет с противоположной стороны
-    const fill = new THREE.DirectionalLight(0xE8F0FF, 0.4);
-    fill.position.set(-width * 0.4, height, length * 0.9);
+    const fill = new THREE.DirectionalLight(0xD8E8FF, 0.38);
+    fill.position.set(-W*0.5, H*0.8, L*0.9);
     scene.add(fill);
-    // Мягкий потолочный свет — нейтральный белый, не оранжевый
-    const ceilLight = new THREE.PointLight(0xFFFFEE, 1.2, Math.max(width, length) * 2);
-    ceilLight.position.set(width / 2, height * 0.9, length / 2);
-    scene.add(ceilLight);
+    const ceilPt = new THREE.PointLight(0xFFFFF0, 0.9, Math.max(W,L)*2.2);
+    ceilPt.position.set(W/2, H*0.92, L/2);
+    scene.add(ceilPt);
 
-    // ── Дизайн из localStorage ──
-    const design = (() => { try { const s = localStorage.getItem('roomDesign'); return s ? JSON.parse(s) : null; } catch { return null; } })();
-    const wallColor  = design?.colors?.walls   ? hexToInt(design.colors.walls)   : S.wall;
-    const floorColor = design?.colors?.floor   ? hexToInt(design.colors.floor)   : S.floor;
-    const ceilColor  = design?.colors?.ceiling ? hexToInt(design.colors.ceiling) : S.ceiling;
+    // Window light
+    const winW = Math.min(W*0.42, 1.6);
+    const winH = Math.min(H*0.50, 1.38);
+    const winY = H*0.58;
+    const wl = new THREE.RectAreaLight(0xCCE8FF, 6, winW*0.88, winH*0.88);
+    wl.position.set(W/2, winY, 0.5); wl.lookAt(W/2, winY, L/2);
+    scene.add(wl);
 
-    // ── Пол (паркет) ──
-    const boardW = 0.16;
-    const cols = Math.ceil(width / boardW);
-    for (let i = 0; i < cols; i++) {
-      const c = i % 4 === 1 ? Math.max(0, floorColor - 0x181818) : i % 4 === 3 ? Math.min(0xFFFFFF, floorColor + 0x080808) : floorColor;
-      const board = new THREE.Mesh(
-        new THREE.BoxGeometry(boardW - 0.008, 0.03, length),
-        new THREE.MeshStandardMaterial({ color: c, roughness: 0.78, metalness: 0.01 })
+    // ── Floor parquet ──
+    const bw = 0.15, cols = Math.ceil(W/bw);
+    for (let i=0;i<cols;i++) {
+      const shade = i%4===1 ? -0x141414 : i%4===3 ? 0x080808 : 0;
+      const c = Math.max(0,Math.min(0xFFFFFF, floorC+shade));
+      const b = new THREE.Mesh(
+        new THREE.BoxGeometry(bw-0.007, 0.028, L),
+        new THREE.MeshStandardMaterial({color:c, roughness:0.76, metalness:0.01})
       );
-      board.position.set(i * boardW + boardW / 2, 0.015, length / 2);
-      board.receiveShadow = true;
-      scene.add(board);
+      b.position.set(i*bw+bw/2, 0.014, L/2);
+      b.receiveShadow = true;
+      scene.add(b);
     }
 
-    // ── Потолок ──
-    const ceil = new THREE.Mesh(
-      new THREE.BoxGeometry(width, 0.08, length),
-      new THREE.MeshStandardMaterial({ color: ceilColor, roughness: 0.98 })
-    );
-    ceil.position.set(width / 2, height + 0.04, length / 2);
-    scene.add(ceil);
+    // ── Ceiling ──
+    const ceilMesh = new THREE.Mesh(box(W,0.06,L), mat(ceilC,0.97));
+    ceilMesh.position.set(W/2, H+0.03, L/2);
+    scene.add(ceilMesh);
 
-    // ── Стены (задняя и левая — непрозрачные) ──
-    const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.92, side: THREE.FrontSide });
-    const backWall = new THREE.Mesh(new THREE.BoxGeometry(width + 0.24, height + 0.08, 0.12), wallMat);
-    backWall.position.set(width / 2, height / 2, -0.06);
-    backWall.receiveShadow = true; scene.add(backWall);
-    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.12, height + 0.08, length + 0.24), wallMat);
-    leftWall.position.set(-0.06, height / 2, length / 2);
-    leftWall.receiveShadow = true; scene.add(leftWall);
+    // ── Walls ──
+    const wm = new THREE.MeshStandardMaterial({color:wallC, roughness:0.90});
+    const backW = new THREE.Mesh(box(W+0.22,H+0.06,0.10), wm);
+    backW.position.set(W/2,H/2,-0.05); backW.receiveShadow=true; scene.add(backW);
+    const leftW = new THREE.Mesh(box(0.10,H+0.06,L+0.22), wm);
+    leftW.position.set(-0.05,H/2,L/2); leftW.receiveShadow=true; scene.add(leftW);
 
-    // ── Правая и передняя стены — умная прозрачность ──
-    const rightWallMat = new THREE.MeshStandardMaterial({
-      color: wallColor, roughness: 0.92, transparent: true, opacity: 0.08, side: THREE.FrontSide, depthWrite: false
-    });
-    const frontWallMat = new THREE.MeshStandardMaterial({
-      color: wallColor, roughness: 0.92, transparent: true, opacity: 0.08, side: THREE.BackSide, depthWrite: false
-    });
-    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.12, height + 0.08, length + 0.24), rightWallMat);
-    rightWall.position.set(width + 0.06, height / 2, length / 2); scene.add(rightWall);
-    const frontWall = new THREE.Mesh(new THREE.BoxGeometry(width + 0.24, height + 0.08, 0.12), frontWallMat);
-    frontWall.position.set(width / 2, height / 2, length + 0.06); scene.add(frontWall);
+    const rightMat = new THREE.MeshStandardMaterial({color:wallC,roughness:0.90,transparent:true,opacity:0.06,side:THREE.FrontSide,depthWrite:false});
+    const frontMat = new THREE.MeshStandardMaterial({color:wallC,roughness:0.90,transparent:true,opacity:0.06,side:THREE.BackSide,depthWrite:false});
+    const rightW = new THREE.Mesh(box(0.10,H+0.06,L+0.22), rightMat);
+    rightW.position.set(W+0.05,H/2,L/2); scene.add(rightW);
+    const frontW = new THREE.Mesh(box(W+0.22,H+0.06,0.10), frontMat);
+    frontW.position.set(W/2,H/2,L+0.05); scene.add(frontW);
 
-    // ── Плинтусы ──
-    const trimMat = new THREE.MeshStandardMaterial({ color: S.trim, roughness: 0.6 });
-    [[width, 0.06, 0.04, width/2, 0.03, 0.03], [width, 0.06, 0.04, width/2, 0.03, length - 0.03],
-     [0.04, 0.06, length, 0.03, 0.03, length/2], [0.04, 0.06, length, width - 0.03, 0.03, length/2]].forEach(([bw, bh, bd, bx, by, bz]) => {
-      const trim = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), trimMat);
-      trim.position.set(bx, by, bz); scene.add(trim);
+    // ── Skirting ──
+    const sm2 = mat(Math.min(0xFFFFFF,wallC+0x060606),0.55);
+    const sh=0.065, sd=0.022;
+    [
+      [W,sh,sd, W/2, sh/2, sd/2],
+      [W,sh,sd, W/2, sh/2, L-sd/2],
+      [sd,sh,L, sd/2, sh/2, L/2],
+      [sd,sh,L, W-sd/2, sh/2, L/2],
+    ].forEach(([bW,bH,bD,bx,by,bz]) => {
+      const s = new THREE.Mesh(box(bW,bH,bD), sm2);
+      s.position.set(bx,by,bz); scene.add(s);
     });
 
-    // ── Окно ──
-    const winW = Math.min(width * 0.4, 1.6);
-    const winH = Math.min(height * 0.5, 1.4);
-    const winY = height * 0.58;
-    const winX = width / 2;
-    const frameMat = new THREE.MeshStandardMaterial({ color: S.trim, roughness: 0.4 });
-    const ft = 0.06;
-    // Рама окна
-    [[winW + ft*2, ft, winY + winH/2 + ft/2], [winW + ft*2, ft, winY - winH/2 - ft/2]].forEach(([fw, _, fz]) => {
-      const f = new THREE.Mesh(new THREE.BoxGeometry(fw, ft, 0.08), frameMat);
-      f.position.set(winX, fz, 0.04); scene.add(f);
+    // ── Window ──
+    const fm = mat(Math.min(0xFFFFFF,wallC+0x0A0A0A),0.40);
+    const ft=0.055, wx=W/2;
+    [[winW+ft*2,ft, wx, winY+winH/2+ft/2, 0.05],[winW+ft*2,ft, wx, winY-winH/2-ft/2, 0.05]].forEach(([fw,,bx,by,bz]) => {
+      const f=new THREE.Mesh(box(fw as number,ft,0.07),fm); f.position.set(bx as number,by as number,bz as number); scene.add(f);
     });
-    [[ft, winH, winX - winW/2 - ft/2], [ft, winH, winX + winW/2 + ft/2]].forEach(([_, fh, fx]) => {
-      const f = new THREE.Mesh(new THREE.BoxGeometry(ft, fh, 0.08), frameMat);
-      f.position.set(fx, winY, 0.04); scene.add(f);
+    [[ft,winH, wx-winW/2-ft/2, winY, 0.05],[ft,winH, wx+winW/2+ft/2, winY, 0.05]].forEach(([fw,fh,bx,by,bz]) => {
+      const f=new THREE.Mesh(box(fw as number,fh as number,0.07),fm); f.position.set(bx as number,by as number,bz as number); scene.add(f);
     });
-    // Стекло
-    const glass = new THREE.Mesh(
-      new THREE.BoxGeometry(winW, winH, 0.04),
-      new THREE.MeshStandardMaterial({ color: 0x88CCFF, transparent: true, opacity: 0.18, roughness: 0.05 })
-    );
-    glass.position.set(winX, winY, 0.02); scene.add(glass);
-    // Свет из окна
-    const winLight = new THREE.RectAreaLight(S.window.color, S.window.int, winW * 0.9, winH * 0.9);
-    winLight.position.set(winX, winY, 0.4);
-    winLight.lookAt(winX, winY, 5);
-    scene.add(winLight);
+    const gl=new THREE.Mesh(box(winW,winH,0.04),new THREE.MeshStandardMaterial({color:0x99CCFF,transparent:true,opacity:0.15,roughness:0.04}));
+    gl.position.set(wx,winY,0.02); scene.add(gl);
+    const cross=new THREE.Mesh(box(winW,ft*0.6,0.04),fm);
+    cross.position.set(wx,winY,0.03); scene.add(cross);
 
-    // ── Мебель ──
-    if (design?.furniture?.length > 0) {
-      design.furniture.forEach((item: any) => buildFurnitureItem(scene, item, width, length));
+    // ── Furniture ──
+    if (d?.furniture?.length > 0) {
+      d.furniture.forEach((item: any) => place(scene, item, W, L));
     } else {
-      // Демо-комната
-      buildBed(scene, width * 0.5, length * 0.22, 1.6, 2.0, S.wall === 0x0D0D1A ? 0x2A2A4A : 0x8B7355);
-      buildNightstand(scene, width * 0.18, length * 0.14, S.wall === 0x0D0D1A ? 0x1A1A2E : 0x7A6345);
-      buildWardrobe(scene, width * 0.12, length * 0.55, 1.0, 0.5, 2.0, S.wall === 0x0D0D1A ? 0x1A1A2E : 0x9A8365);
-      buildLamp(scene, width * 0.82, length * 0.72, S.wall === 0x0D0D1A ? 0x2A2A4A : 0x7A6345);
-      buildPlant(scene, width * 0.88, length * 0.88, 0x5A3A1A);
-      buildRug(scene, width * 0.5, length * 0.48, width * 0.6, length * 0.35, S.floor);
+      place(scene,{type:'bed',       x:W*0.5, z:L*0.20,width:1.6,depth:2.0,height:0.5, color:'#8B7355',rotation:180},W,L);
+      place(scene,{type:'nightstand',x:W*0.22,z:L*0.14,width:0.5,depth:0.4,height:0.55,color:'#7A6345',rotation:180},W,L);
+      place(scene,{type:'wardrobe',  x:W*0.12,z:L*0.55,width:1.0,depth:0.5,height:2.0, color:'#9A8365',rotation:270},W,L);
+      place(scene,{type:'lamp',      x:W*0.82,z:L*0.72,width:0.3,depth:0.3,height:1.5, color:'#A09070',rotation:0  },W,L);
+      place(scene,{type:'plant',     x:W*0.88,z:L*0.88,width:0.3,depth:0.3,height:0.55,color:'#4A7A5A',rotation:0  },W,L);
     }
 
-    // ── Анимация + динамическая прозрачность стен ──
-    let animId: number;
+    // ── Loop ──
+    let raf: number;
     const animate = () => {
-      animId = requestAnimationFrame(animate);
+      raf = requestAnimationFrame(animate);
       controls.update();
-
-      // Делаем правую стену прозрачной если камера за ней
-      const camX = camera.position.x;
-      const camZ = camera.position.z;
-      const targetOpacity = (camX > width * 0.7 || camZ > length * 0.7) ? 0.06 : 0.08;
-      rightWallMat.opacity += (targetOpacity - rightWallMat.opacity) * 0.1;
-      frontWallMat.opacity += (targetOpacity - frontWallMat.opacity) * 0.1;
-
+      const behind = camera.position.x>W*0.75 || camera.position.z>L*0.75;
+      const to = behind ? 0.04 : 0.07;
+      rightMat.opacity += (to-rightMat.opacity)*0.08;
+      frontMat.opacity += (to-frontMat.opacity)*0.08;
       renderer.render(scene, camera);
     };
     animate();
 
-    const handleResize = () => {
-      if (!mountRef.current) return;
-      const w = mountRef.current.clientWidth;
-      const h = mountRef.current.clientHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
+    const onResize = () => {
+      if (!el) return;
+      const w=el.clientWidth, h=el.clientHeight;
+      camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h);
     };
-    window.addEventListener('resize', handleResize);
-
+    window.addEventListener('resize', onResize);
     return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onResize);
       renderer.dispose();
-      if (mountRef.current?.contains(renderer.domElement)) mountRef.current.removeChild(renderer.domElement);
+      if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement);
     };
-  }, [width, length, height, style]);
+  }, [W, L, H, SN]);
 
-  const furniture = aiDesign?.furniture || [];
+  const furniture = design?.furniture ?? [];
 
   return (
     <div className="min-h-screen bg-[#08080F] text-white">
-      <nav className="flex justify-between items-center px-8 py-4 border-b border-white/10">
+      <nav className="flex justify-between items-center px-6 py-4 border-b border-white/10">
         <a href="/" className="text-lg font-bold tracking-tight">
           Interior<span className="text-violet-400">AI</span>
         </a>
         <div className="flex items-center gap-4">
           <a href="/result" className="text-xs text-gray-500 hover:text-violet-400 transition">← Назад к рендерам</a>
           <div className="text-right">
-            <div className="text-sm font-medium text-violet-400">{style}</div>
-            <div className="text-xs text-gray-500">{width}м × {length}м × {height}м</div>
+            <div className="text-sm font-medium text-violet-400">{SN}</div>
+            <div className="text-xs text-gray-500">{W}м × {L}м × {H}м</div>
           </div>
         </div>
       </nav>
 
-      <div className="flex flex-col items-center px-4 py-4">
-        <div className="text-center mb-4">
-          <h1 className="text-2xl font-bold mb-1">Твоя комната в 3D</h1>
-          <p className="text-gray-500 text-sm">Зажми и тяни · Колёсико для зума · Правая кнопка для панорамы</p>
+      <div className="flex flex-col items-center px-4 py-5">
+        <div className="text-center mb-4 w-full max-w-5xl">
+          <div className="flex items-center justify-center gap-3 mb-1">
+            <h1 className="text-2xl font-bold">Твоя комната в 3D</h1>
+            {design?.concept && (
+              <button
+                onClick={() => setShowConcept(v => !v)}
+                className="text-xs text-violet-400 border border-violet-500/30 px-3 py-1 rounded-full hover:bg-violet-500/10 transition"
+              >
+                ✨ Концепт
+              </button>
+            )}
+          </div>
+          <p className="text-gray-500 text-xs">Зажми и тяни · Колёсико для зума · Правая кнопка для панорамы</p>
+          {showConcept && design?.concept && (
+            <div className="mt-3 bg-violet-500/5 border border-violet-500/20 rounded-xl px-4 py-3 text-sm text-gray-300 text-left leading-relaxed">
+              {design.concept}
+            </div>
+          )}
         </div>
 
-        <div ref={mountRef} className="w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl" style={{ height: '65vh' }} />
+        <div ref={mountRef}
+          className="w-full max-w-5xl rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-violet-500/5"
+          style={{ height: '62vh' }}
+        />
 
         {furniture.length > 0 && (
-          <div className="w-full max-w-3xl mt-6">
+          <div className="w-full max-w-5xl mt-6">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-semibold">Мебель из этого дизайна</h2>
+              <h2 className="text-sm font-semibold text-gray-300">Мебель из этого дизайна</h2>
               <a href="https://jysk.md/ru" target="_blank" className="text-xs text-gray-500 hover:text-violet-400 transition">jysk.md →</a>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
               {furniture.map((item: any, i: number) => (
                 <a key={i}
                   href={item.jysk_url || 'https://jysk.md/ru'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group bg-white/5 border border-white/10 rounded-xl p-3 hover:border-violet-500/50 hover:bg-violet-500/5 transition-all"
+                  target="_blank" rel="noopener noreferrer"
+                  onMouseEnter={() => setSelected(i)}
+                  onMouseLeave={() => setSelected(null)}
+                  className={`group bg-white/5 border rounded-xl overflow-hidden transition-all ${
+                    selected===i ? 'border-violet-500/60 bg-violet-500/8' : 'border-white/10 hover:border-violet-500/40'
+                  }`}
                 >
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-3 h-3 rounded-sm flex-shrink-0 border border-white/20" style={{ backgroundColor: item.color || '#888' }} />
-                    <div className="text-xs font-medium text-gray-300 group-hover:text-white transition truncate">
-                      {item.jysk_name || item.name}
+                  {item.image && (
+                    <div className="w-full h-28 bg-white overflow-hidden">
+                      <img src={item.image} alt={item.jysk_name||item.name}
+                        className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
+                        onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />
                     </div>
+                  )}
+                  <div className="p-3">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-3 h-3 rounded-sm flex-shrink-0 border border-white/20"
+                        style={{backgroundColor: item.color||'#888'}} />
+                      <div className="text-xs font-medium text-gray-300 group-hover:text-white transition truncate leading-tight">
+                        {item.jysk_name||item.name}
+                      </div>
+                    </div>
+                    <div className="text-violet-400 font-semibold text-xs">{item.jysk_price||'—'}</div>
                   </div>
-                  <div className="text-violet-400 font-semibold text-xs">{item.jysk_price || '—'}</div>
                 </a>
               ))}
             </div>
+
+            {furniture.some((f: any) => f.jysk_price) && (
+              <div className="mt-3 flex justify-end">
+                <div className="bg-white/5 border border-white/10 rounded-xl px-5 py-3 flex items-center gap-4">
+                  <span className="text-sm text-gray-400">Итого</span>
+                  <span className="text-base font-bold text-white">
+                    {furniture.reduce((sum: number, f: any) => {
+                      const n=parseInt((f.jysk_price||'0').replace(/[^0-9]/g,''));
+                      return sum+(isNaN(n)?0:n);
+                    }, 0).toLocaleString('ru')} MDL
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        <div className="mt-6 text-center pb-8">
+        <div className="mt-8 text-center pb-10">
           <p className="text-gray-500 text-sm mb-3">Нравится? Сделаем персональный концепт для твоей комнаты</p>
           <a href="/" className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-500 transition px-8 py-3 rounded-full font-semibold text-sm">
             Заказать свой дизайн
           </a>
         </div>
       </div>
-
-      {showToast && aiDesign?.concept && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-full px-4">
-          <div className="bg-[#1a1a2e] border border-violet-500/30 rounded-2xl px-5 py-4 shadow-2xl shadow-violet-500/10">
-            <div className="text-xs text-violet-400 font-medium mb-1">✨ Концепт дизайна</div>
-            <p className="text-sm text-gray-300 leading-relaxed">{aiDesign.concept}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 export default function Viewer() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#08080F] flex items-center justify-center"><div className="text-white/40 text-sm animate-pulse">Загружаем 3D...</div></div>}>
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#08080F] flex items-center justify-center">
+        <div className="text-white/40 text-sm animate-pulse">Загружаем 3D...</div>
+      </div>
+    }>
       <ViewerContent />
     </Suspense>
   );
