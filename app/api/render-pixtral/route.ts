@@ -270,7 +270,7 @@ professional color grading, magazine editorial quality, no people, no text.`;
           console.log('Trying:', url.includes('flux-pro') ? 'flux-pro' : 'flux');
           const imgRes = await fetch(url, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
-            signal: AbortSignal.timeout(60000),
+            signal: AbortSignal.timeout(90000),
           });
           if (imgRes.ok) {
             const buffer = await imgRes.arrayBuffer();

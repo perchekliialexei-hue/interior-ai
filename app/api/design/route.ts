@@ -12,6 +12,7 @@ const DEFAULT_SIZES: Record<string, { width: number; depth: number; height: numb
   lamp:       { width: 0.3, depth: 0.3, height: 1.5  },
   rug:        { width: 1.4, depth: 2.0, height: 0.02 },
   plant:      { width: 0.3, depth: 0.3, height: 0.6  },
+  dresser: { width: 1.0, depth: 0.5, height: 0.8 },
 };
 
 export async function POST(req: NextRequest) {
@@ -35,7 +36,7 @@ Return ONLY valid JSON (no markdown, no backticks):
   "colors": { "walls": "#hex", "floor": "#hex", "ceiling": "#hex", "accent": "#hex" },
   "furniture": [
     {
-      "type": "bed|sofa|desk|chair|wardrobe|shelf|table|lamp|plant|rug|nightstand",
+      "type": "bed|sofa|desk|chair|wardrobe|dresser|shelf|table|lamp|plant|rug|nightstand",
       "name": "name in Russian",
       "x": 2.0,
       "z": 1.0,
