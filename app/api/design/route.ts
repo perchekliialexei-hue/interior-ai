@@ -12,7 +12,13 @@ const DEFAULT_SIZES: Record<string, { width: number; depth: number; height: numb
   lamp:       { width: 0.3, depth: 0.3, height: 1.5  },
   rug:        { width: 1.4, depth: 2.0, height: 0.02 },
   plant:      { width: 0.3, depth: 0.3, height: 0.6  },
-  dresser: { width: 1.0, depth: 0.5, height: 0.8 },
+  dresser:    { width: 1.0, depth: 0.5, height: 0.8  },
+  // декор
+  curtains:   { width: 1.6, depth: 0.1, height: 2.4  },
+  painting:   { width: 0.8, depth: 0.05, height: 0.6 },
+  blanket:    { width: 1.4, depth: 0.6, height: 0.05 },
+  cushions:   { width: 0.5, depth: 0.5, height: 0.2  },
+  mirror:     { width: 0.6, depth: 0.05, height: 1.0 },
 };
 
 export async function POST(req: NextRequest) {
@@ -25,7 +31,7 @@ export async function POST(req: NextRequest) {
     const H = parseFloat(height) || 2.7;
 
     // ── Шаг 1: Mistral генерирует дизайн ─────────────────────────────────────
-    const prompt = `You are an expert interior designer. Create a detailed room layout.
+    const prompt = `You are an expert interior designer. Create a detailed, realistic room layout with ALL decorative elements.
 
 Room: ${roomType}, ${W}m wide (X-axis) x ${L}m long (Z-axis) x ${H}m height, style: ${style}
 Client wishes: ${wishes || 'none'}
@@ -34,9 +40,10 @@ Return ONLY valid JSON (no markdown, no backticks):
 {
   "concept": "2-3 sentences in Russian",
   "colors": { "walls": "#hex", "floor": "#hex", "ceiling": "#hex", "accent": "#hex" },
+  "ceiling_material": "wood_planks|white_plaster|concrete|coffered",
   "furniture": [
     {
-      "type": "bed|sofa|desk|chair|wardrobe|dresser|shelf|table|lamp|plant|rug|nightstand",
+      "type": "bed|sofa|desk|chair|wardrobe|dresser|shelf|table|lamp|plant|rug|nightstand|curtains|painting|blanket|cushions|mirror",
       "name": "name in Russian",
       "x": 2.0,
       "z": 1.0,
@@ -44,19 +51,30 @@ Return ONLY valid JSON (no markdown, no backticks):
       "depth": 2.0,
       "height": 0.5,
       "color": "#hex",
-      "rotation": 0
+      "rotation": 0,
+      "wall": "back|left|right|none"
     }
   ]
 }
 
-CRITICAL placement rules for ${W}x${L}m room:
+DECOR RULES — always include these if they match the style:
+- curtains: always add 1-2 curtains near windows (z=0, rotation=0). width = window width + 0.4m (~1.6-2.0m), height = room height - 0.1. color = light linen/white for scandinavian/minimalist, rich fabric for cozy/classic
+- painting: add 1-2 wall paintings. Place on back wall (z=0.06, rotation=0) or side walls. width 0.6-1.2m
+- blanket: add on bed (same x/z as bed, slightly offset). width = bed width - 0.1
+- cushions: add decorative cushions on sofa or bed
+- mirror: add for bedroom/hallway on side wall
+
+PLACEMENT rules for ${W}x${L}m room:
 - x = distance from LEFT wall (0 to ${W}), z = distance from BACK wall (0 to ${L})
-- All x between 0.3 and ${(W - 0.3).toFixed(1)}, all z between 0.3 and ${(L - 0.3).toFixed(1)}
-- Back zone (z 0.3-${(L * 0.35).toFixed(1)}): bed/sofa/wardrobe/shelf against walls
+- All x between 0.1 and ${(W - 0.1).toFixed(1)}, all z between 0.1 and ${(L - 0.1).toFixed(1)}
+- curtains must have z=0.08 and rotation=0 (hang on back wall near window)
+- paintings must have z=0.06 or x=0.06 or x=${(W - 0.06).toFixed(2)} (on wall surface)
+- Back zone (z 0.3-${(L * 0.35).toFixed(1)}): bed/sofa/wardrobe/shelf
 - Middle (z ${(L * 0.35).toFixed(1)}-${(L * 0.65).toFixed(1)}): desk/table/rug
 - Front (z ${(L * 0.65).toFixed(1)}-${(L - 0.3).toFixed(1)}): chair/lamp/plant
-- Minimum 0.6m between furniture centers, 6-8 items total
-- rotation: 0=facing front, 90=facing left, 180=facing back, 270=facing right`;
+- Minimum 0.6m between furniture centers, 8-12 items total including decor
+- rotation: 0=facing front, 90=facing left, 180=facing back, 270=facing right
+- wall field: which wall this item is against (back/left/right/none)`;
 
     const messages: any[] = [{
       role: 'user',
@@ -70,7 +88,7 @@ CRITICAL placement rules for ${W}x${L}m room:
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.MISTRAL_API_KEY}` },
       body: JSON.stringify({
         model: photoBase64 ? 'pixtral-12b-2409' : 'mistral-small-latest',
-        messages, max_tokens: 2000, temperature: 0.3,
+        messages, max_tokens: 2500, temperature: 0.3,
       }),
     });
 
@@ -81,7 +99,9 @@ CRITICAL placement rules for ${W}x${L}m room:
     if (!jsonMatch) throw new Error('No JSON from Mistral: ' + mistralText.substring(0, 200));
     const design = JSON.parse(jsonMatch[0]);
 
-    // ── Шаг 2: Подбираем реальные товары напрямую из Google Sheets ───────────
+    // ── Шаг 2: Подбираем реальные товары из Google Sheets ────────────────────
+    const DECOR_TYPES = new Set(['curtains', 'painting', 'blanket', 'cushions', 'mirror']);
+
     try {
       const SHEET_ID = '15E9X3HS8K8tVWBA_t76gxEwJ1tZhoeweGU5-i20q50o';
       const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Sheet1`;
@@ -130,84 +150,74 @@ CRITICAL placement rules for ${W}x${L}m room:
       const styleKey = STYLE_MAP[style] || 'minimalist';
       const roomKey = ROOM_MAP[roomType] || 'bedroom';
 
-if (design.furniture && products.length > 0) {
-  design.furniture = design.furniture.map((item: any) => {
-    // Определяем нужный subtype для каждого типа мебели
-    const SUBTYPE_MAP: Record<string, string[]> = {
-      'wardrobe':   ['wardrobe'],
-      'dresser':    ['dresser'],
-      'bed':        ['bed'],
-      'chair':      ['dining_chair', 'chair'],
-      'desk':       ['desk'],
-      'sofa':       ['sofa'],
-      'shelf':      ['shelf'],
-      'nightstand': ['nightstand'],
-      'table':      ['table'],
-      'lamp':       ['lamp'],
-      'rug':        ['rug'],
-      'plant':      ['plant'],
-    };
+      if (design.furniture && products.length > 0) {
+        design.furniture = design.furniture.map((item: any) => {
+          // Декор не ищем в каталоге — оставляем как есть с цветом от AI
+          if (DECOR_TYPES.has(item.type)) return item;
 
-    const allowedSubtypes = SUBTYPE_MAP[item.type] || [item.type];
+          const SUBTYPE_MAP: Record<string, string[]> = {
+            'wardrobe':   ['wardrobe'],
+            'dresser':    ['dresser'],
+            'bed':        ['bed'],
+            'chair':      ['dining_chair', 'chair'],
+            'desk':       ['desk'],
+            'sofa':       ['sofa'],
+            'shelf':      ['shelf'],
+            'nightstand': ['nightstand'],
+            'table':      ['table'],
+            'lamp':       ['lamp'],
+            'rug':        ['rug'],
+            'plant':      ['plant'],
+          };
 
-    // Фильтруем по subtype + стиль/комната
-    const candidates = products.filter((p: any) => {
-      const sub = p.subtype || p.type;
-      const subtypeOk = allowedSubtypes.includes(sub);
-      const styleOk = p.styles?.includes(styleKey) || p.roomTypes?.includes(roomKey);
-      return subtypeOk && styleOk;
-    });
+          const allowedSubtypes = SUBTYPE_MAP[item.type] || [item.type];
+          const candidates = products.filter((p: any) => {
+            const sub = p.subtype || p.type;
+            return allowedSubtypes.includes(sub) &&
+              (p.styles?.includes(styleKey) || p.roomTypes?.includes(roomKey));
+          });
+          const fallback = products.find((p: any) =>
+            allowedSubtypes.includes(p.subtype || p.type)
+          );
+          const pick = candidates.length > 0
+            ? candidates[Math.floor(Math.random() * candidates.length)]
+            : fallback;
 
-    // Фолбек — только по subtype без стиля
-    const fallback = products.find((p: any) => {
-      const sub = p.subtype || p.type;
-      return allowedSubtypes.includes(sub);
-    });
+          const defaults = DEFAULT_SIZES[item.type] || { width: 1.0, depth: 1.0, height: 0.8 };
+          if (!pick) return {
+            ...item,
+            width:  typeof item.width  === 'number' ? item.width  : defaults.width,
+            depth:  typeof item.depth  === 'number' ? item.depth  : defaults.depth,
+            height: typeof item.height === 'number' ? item.height : defaults.height,
+          };
 
-    const pick = candidates.length > 0
-      ? candidates[Math.floor(Math.random() * candidates.length)]
-      : fallback;
-
-    const defaults = DEFAULT_SIZES[item.type] || { width: 1.0, depth: 1.0, height: 0.8 };
-
-    if (!pick) return {
-      ...item,
-      width:  typeof item.width  === 'number' ? item.width  : defaults.width,
-      depth:  typeof item.depth  === 'number' ? item.depth  : defaults.depth,
-      height: typeof item.height === 'number' ? item.height : defaults.height,
-    };
-
-    return {
-      ...item,
-      x: item.x,
-      z: item.z,
-      rotation: item.rotation || 0,
-      name:       pick.name,
-      color:      pick.color || item.color,
-      width:      typeof pick.width  === 'number' ? pick.width  : defaults.width,
-      depth:      typeof pick.depth  === 'number' ? pick.depth  : defaults.depth,
-      height:     typeof pick.height === 'number' ? pick.height : defaults.height,
-      jysk_name:  pick.name,
-      jysk_price: `${pick.price} ${pick.currency}`,
-      jysk_url:   pick.url,
-      image:      pick.image,
-      subtype:    pick.subtype || pick.type,
-    };
-  });
-}
+          return {
+            ...item,
+            x: item.x, z: item.z, rotation: item.rotation || 0,
+            name: pick.name, color: pick.color || item.color,
+            width:      typeof pick.width  === 'number' ? pick.width  : defaults.width,
+            depth:      typeof pick.depth  === 'number' ? pick.depth  : defaults.depth,
+            height:     typeof pick.height === 'number' ? pick.height : defaults.height,
+            jysk_name:  pick.name,
+            jysk_price: `${pick.price} ${pick.currency}`,
+            jysk_url:   pick.url,
+            image:      pick.image,
+            subtype:    pick.subtype || pick.type,
+          };
+        });
+      }
     } catch (e) {
       console.error('Sheets error:', e);
     }
 
-    // ── Шаг 3: Pixtral смотрит на реальные фото и уточняет расстановку ───────
+    // ── Шаг 3: Pixtral уточняет расстановку мебели (не декора) ──────────────
     try {
       const furnitureWithImages = (design.furniture || [])
-        .filter((f: any) => f.image && !['rug', 'plant', 'lamp'].includes(f.type))
+        .filter((f: any) => f.image && !['rug', 'plant', 'lamp', ...DECOR_TYPES].includes(f.type))
         .slice(0, 4);
 
       if (furnitureWithImages.length >= 2) {
         const imageContents: any[] = [];
-
         for (const item of furnitureWithImages) {
           try {
             const res = await fetch(item.image);
@@ -216,29 +226,14 @@ if (design.furniture && products.length > 0) {
               const base64 = Buffer.from(buffer).toString('base64');
               const mime = res.headers.get('content-type') || 'image/jpeg';
               imageContents.push({ type: 'image_url', image_url: `data:${mime};base64,${base64}` });
-              imageContents.push({
-                type: 'text',
-                text: `${item.type.toUpperCase()}: "${item.jysk_name}", size ${item.width}x${item.depth}m, currently at x=${item.x}, z=${item.z}`,
-              });
+              imageContents.push({ type: 'text', text: `${item.type.toUpperCase()}: "${item.jysk_name}", size ${item.width}x${item.depth}m, at x=${item.x}, z=${item.z}` });
             }
           } catch {}
         }
 
         if (imageContents.length > 0) {
-          const layoutPrompt = `You are placing real furniture in a ${W}x${L}m ${roomType} (${style} style).
-X-axis: ${W}m wide (0=left wall, ${W}=right wall)
-Z-axis: ${L}m deep (0=back wall, ${L}=front/viewer side)
-
-Looking at these real furniture photos, optimize their placement for a realistic interior:
-- Bed/sofa/wardrobe: close to walls (z near 0.3 or x near edges)
-- Leave 0.7m walking corridors
-- Pieces should not overlap (check sizes!)
-- Create a coherent, livable layout
-
-Return ONLY a JSON array (no text before or after):
-[{"type":"wardrobe","x":0.5,"z":0.8,"rotation":0},{"type":"bed","x":2.8,"z":1.0,"rotation":180}]
-
-rotation: 0=facing front(viewer), 180=facing back wall, 90=facing right wall, 270=facing left wall`;
+          const layoutPrompt = `Optimize furniture placement in ${W}x${L}m room (${style}).
+Return ONLY JSON array: [{"type":"bed","x":2.8,"z":1.0,"rotation":180}]`;
 
           const pixtralRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
             method: 'POST',
@@ -246,15 +241,11 @@ rotation: 0=facing front(viewer), 180=facing back wall, 90=facing right wall, 27
             body: JSON.stringify({
               model: 'pixtral-12b-2409',
               messages: [{ role: 'user', content: [...imageContents, { type: 'text', text: layoutPrompt }] }],
-              max_tokens: 400,
-              temperature: 0.2,
+              max_tokens: 400, temperature: 0.2,
             }),
           });
-
           const pixtralData = await pixtralRes.json();
           const pixtralText = pixtralData.choices?.[0]?.message?.content || '';
-          console.log('Pixtral layout:', pixtralText.substring(0, 400));
-
           const arrMatch = pixtralText.match(/\[[\s\S]*\]/);
           if (arrMatch) {
             try {
@@ -270,20 +261,14 @@ rotation: 0=facing front(viewer), 180=facing back wall, 90=facing right wall, 27
                   item.z = Math.max(hd + 0.15, Math.min(L - hd - 0.15, upd.z));
                   if (typeof upd.rotation === 'number') item.rotation = upd.rotation;
                   updated.add(upd.type);
-                  console.log(`  ✓ Pixtral [${item.type}] → x=${item.x.toFixed(2)}, z=${item.z.toFixed(2)}, rot=${item.rotation}`);
                 }
               });
-            } catch (e) {
-              console.error('Pixtral JSON parse error:', e);
-            }
+            } catch (e) { console.error('Pixtral parse error:', e); }
           }
         }
       }
-    } catch (e) {
-      console.error('Pixtral layout error:', e);
-    }
+    } catch (e) { console.error('Pixtral layout error:', e); }
 
-    // Сохраняем параметры комнаты
     design.width    = String(W);
     design.length   = String(L);
     design.height   = String(H);
@@ -291,7 +276,6 @@ rotation: 0=facing front(viewer), 180=facing back wall, 90=facing right wall, 27
     design.style    = style;
 
     return NextResponse.json({ success: true, design });
-
   } catch (error) {
     console.error('Design API error:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
