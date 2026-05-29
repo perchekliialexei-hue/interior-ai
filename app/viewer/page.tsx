@@ -49,7 +49,7 @@ function resolveCollision(
   for (let iter = 0; iter < 4; iter++) {
     let moved = false;
     for (const b of placedBoxes) {
-      if ((FURNITURE_PRIORITY[b.type] ?? 3) >= myPriority) continue;
+      if ((FURNITURE_PRIORITY[b.type] ?? 3) > myPriority) continue;
       const overlapX = (sw / 2 + b.w / 2) - Math.abs(px - b.x);
       const overlapZ = (sd / 2 + b.d / 2) - Math.abs(pz - b.z);
       if (overlapX > 0 && overlapZ > 0) {
@@ -470,9 +470,23 @@ if (item.type === 'shelf') {
     return;
   }
 
-  // Обычная мебель
-  g.position.set(px, 0, pz);
-  scene.add(g);
+ // Обычная мебель — поднимаем на высоту ножек
+  const legHeight: Record<string, number> = {
+    desk: 0.355,
+    table: 0.19,
+    chair: 0.20,
+    nightstand: 0,
+    bed: 0.18,
+    sofa: 0.05,
+    wardrobe: 0,
+    dresser: 0,
+    shelf: 0,
+    lamp: 0,
+    plant: 0,
+    rug: 0,
+  };
+  const lift = legHeight[item.type] ?? 0;
+  g.position.set(px, lift, pz);
 
   switch (item.type) {
     case 'bed':        addBed(g, iw, id, c);                          break;
