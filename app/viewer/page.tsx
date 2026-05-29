@@ -27,7 +27,47 @@ function add(g: THREE.Group, geo: THREE.BufferGeometry, m: THREE.Material, sx = 
 
 const WALL_TYPES = new Set(['bed', 'wardrobe', 'shelf', 'desk', 'sofa', 'dresser', 'mirror']);
 const DECOR_TYPES = new Set(['curtains', 'painting', 'blanket', 'cushions', 'mirror']);
+// ── COLLISION DETECTION ───────────────────────────────────────────────────
+type BBox = { x: number; z: number; w: number; d: number; type: string };
+const placedBoxes: BBox[] = [];
 
+const FURNITURE_PRIORITY: Record<string, number> = {
+  bed: 10, sofa: 9, wardrobe: 8, dresser: 7, desk: 6,
+  shelf: 5, table: 4, chair: 3, nightstand: 3,
+  lamp: 2, plant: 2, rug: 1,
+  curtains: 0, painting: 0, blanket: 0, cushions: 0, mirror: 0,
+};
+
+function resolveCollision(
+  px: number, pz: number,
+  sw: number, sd: number,
+  type: string,
+  roomW: number, roomL: number
+): [number, number] {
+  const myPriority = FURNITURE_PRIORITY[type] ?? 3;
+
+  for (let iter = 0; iter < 4; iter++) {
+    let moved = false;
+    for (const b of placedBoxes) {
+      if ((FURNITURE_PRIORITY[b.type] ?? 3) >= myPriority) continue;
+      const overlapX = (sw / 2 + b.w / 2) - Math.abs(px - b.x);
+      const overlapZ = (sd / 2 + b.d / 2) - Math.abs(pz - b.z);
+      if (overlapX > 0 && overlapZ > 0) {
+        if (overlapX < overlapZ) {
+          px += px > b.x ? overlapX + 0.05 : -(overlapX + 0.05);
+        } else {
+          pz += pz > b.z ? overlapZ + 0.05 : -(overlapZ + 0.05);
+        }
+        // Не выходим за стены после сдвига
+        px = Math.max(sw / 2 + 0.05, Math.min(roomW - sw / 2 - 0.05, px));
+        pz = Math.max(sd / 2 + 0.05, Math.min(roomL - sd / 2 - 0.05, pz));
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  return [px, pz];
+}
 function snapToWall(
   px: number, pz: number,
   sw: number, sd: number,
@@ -48,9 +88,11 @@ function snapToWall(
 
 // ── ШТОРЫ ────────────────────────────────────────────────────────────────────
 function addCurtains(g: THREE.Group, w: number, h: number, c: number) {
-  const fabric = new THREE.MeshStandardMaterial({
-    color: c, roughness: 0.95, metalness: 0.0, side: THREE.DoubleSide,
-  });
+  // Заменить строку с fabric:
+const curtainColor = Math.max(c, 0x9A9080); // минимум светло-серый
+const fabric = new THREE.MeshStandardMaterial({
+  color: curtainColor, roughness: 0.95, metalness: 0.0, side: THREE.DoubleSide,
+});
   const panelW = w / 2 - 0.05;
   // Два полотна — левое и правое
   for (const side of [-1, 1]) {
@@ -86,8 +128,7 @@ function addCurtains(g: THREE.Group, w: number, h: number, c: number) {
 // ── КАРТИНА ───────────────────────────────────────────────────────────────────
 function addPainting(g: THREE.Group, w: number, h: number, c: number) {
   // Рама
-  const frameC = Math.max(0, c - 0x202020);
-  const frameMat = mat(frameC === 0 ? 0x1A1A1A : frameC, 0.5, 0.2);
+  const frameMat = mat(0x2A2520, 0.5, 0.15); // всегда тёмная дерево-рама
   const ft = 0.04; // толщина рамы
   // Рама — 4 полосы
   add(g, box(w + ft * 2, ft, 0.03), frameMat, 0,  h / 2 + ft / 2, 0);
@@ -359,7 +400,16 @@ function place(scene: THREE.Scene, item: any, roomW: number, roomL: number, room
   // Клиппинг внутри комнаты
   px = Math.max(snapW / 2 + 0.02, Math.min(roomW - snapW / 2 - 0.02, px));
   pz = Math.max(snapD / 2 + 0.02, Math.min(roomL - snapD / 2 - 0.02, pz));
-
+  // Collision detection — только для обычной мебели
+  if (!DECOR_TYPES.has(item.type)) {
+    [px, pz] = resolveCollision(px, pz, snapW, snapD, item.type, roomW, roomL);
+    placedBoxes.push({ x: px, z: pz, w: snapW, d: snapD, type: item.type });
+  }
+  // Дополнительный hard clamp для полок
+if (item.type === 'shelf') {
+  px = Math.max(0.3, Math.min(roomW - 0.3, px));
+  pz = Math.max(0.3, Math.min(roomL - 0.3, pz));
+}
   // Пристегиваем к стене мебель и декор на стенах
   if (WALL_TYPES.has(item.type)) {
     [px, pz] = snapToWall(px, pz, snapW, snapD, rotDeg, roomW, roomL, item.wall);
@@ -464,6 +514,7 @@ function ViewerContent() {
     const cW = el.clientWidth, cH = el.clientHeight;
 
     let d: any = null;
+    placedBoxes.length = 0; // сбрасываем перед каждым рендером сцены
     try { const s = localStorage.getItem('roomDesign'); if (s) d = JSON.parse(s); } catch {}
 
     const wallC    = hex(d?.colors?.walls,   0xEEE8DF);
