@@ -207,17 +207,17 @@ function addSofa(g: THREE.Group, w: number, d: number, c: number) {
   const fab  = mat(c, 0.88);
   const dark = mat(Math.max(0, c-0x1A1A1A), 0.70);
   const leg  = mat(0x5A5A5A, 0.35, 0.65);
-  add(g, box(w,0.26,d), dark, 0, 0.13, 0);
+  add(g, box(w,0.26,d), dark, 0, 0.23, 0);
   const sw = (w-0.28)/3;
   for (let i=0;i<3;i++) {
     const cx = -w/2+0.14+sw/2+i*sw;
-    add(g, box(sw-0.025,0.17,d*0.56), fab, cx, 0.39, d*0.12);
-    add(g, box(sw-0.03,0.42,0.18), fab, cx, 0.54, -d/2+0.13);
+    add(g, box(sw-0.025,0.17,d*0.56), fab, cx, 0.49, d*0.12);
+    add(g, box(sw-0.03,0.42,0.18), fab, cx, 0.64, -d/2+0.13);
   }
-  [-w/2+0.07, w/2-0.07].forEach(ax => add(g, box(0.12,0.48,d), dark, ax, 0.37, 0));
+  [-w/2+0.07, w/2-0.07].forEach(ax => add(g, box(0.12,0.48,d), dark, ax, 0.47, 0));
   [[-w/2+0.08,-d/2+0.08],[w/2-0.08,-d/2+0.08],
    [-w/2+0.08, d/2-0.08],[w/2-0.08, d/2-0.08]].forEach(([lx,lz]) => {
-    add(g, cyl(0.025,0.02,0.10,8), leg, lx, -0.05, lz);
+    add(g, cyl(0.025,0.02,0.10,8), leg, lx, 0.05, lz);
   });
 }
 
@@ -261,10 +261,10 @@ function addDesk(g: THREE.Group, w: number, d: number, c: number) {
   const wood = mat(c, 0.65);
   const dark = mat(Math.max(0,c-0x181818), 0.55);
   const leg  = mat(Math.max(0,c-0x0A0A0A), 0.50, 0.12);
-  add(g, box(w,0.038,d), wood, 0, 0.019, 0);
+  add(g, box(w,0.04,d), wood, 0, 0.40, 0);
   [[-w/2+0.04,-d/2+0.04],[w/2-0.04,-d/2+0.04],
    [-w/2+0.04, d/2-0.04],[w/2-0.04, d/2-0.04]].forEach(([lx,lz]) => {
-    add(g, box(0.04,0.71,0.04), leg, lx, -0.355, lz);
+    add(g, box(0.04,0.71,0.04), leg, lx, 0.355, lz);
   });
   add(g, box(w*0.42,0.18,d*0.50), dark, w*0.22, -0.13, 0);
 }
@@ -273,12 +273,12 @@ function addDesk(g: THREE.Group, w: number, d: number, c: number) {
 function addChair(g: THREE.Group, c: number) {
   const fab = mat(c, 0.85);
   const leg = mat(Math.max(0,c-0x101010), 0.50, 0.2);
-  add(g, box(0.48,0.09,0.46), fab, 0, 0.045, 0);
-  add(g, box(0.48,0.46,0.07), fab, 0, 0.30, -0.20);
-  add(g, box(0.44,0.06,0.42), mat(Math.min(0xFFFFFF,c+0x101010),0.9), 0, 0.105, 0.01);
-  [[-0.19,-0.19],[0.19,-0.19],[-0.19,0.19],[0.19,0.19]].forEach(([lx,lz]) => {
-    add(g, box(0.035,0.40,0.035), leg, lx, -0.20, lz);
-  });
+  add(g, box(0.48,0.09,0.46), fab, 0, 0.445, 0);
+add(g, box(0.48,0.46,0.07), fab, 0, 0.70, -0.20);
+add(g, box(0.44,0.06,0.42), mat(Math.min(0xFFFFFF,c+0x101010),0.9), 0, 0.505, 0.01);
+[[-0.19,-0.19],[0.19,-0.19],[-0.19,0.19],[0.19,0.19]].forEach(([lx,lz]) => {
+  add(g, box(0.035,0.40,0.035), leg, lx, 0.20, lz);
+});
 }
 
 // ── СТОЛИК ───────────────────────────────────────────────────────────────────
@@ -288,7 +288,7 @@ function addTable(g: THREE.Group, w: number, d: number, c: number) {
   add(g, box(w,0.04,d), wood, 0, 0.02, 0);
   [[-w/2+0.05,-d/2+0.05],[w/2-0.05,-d/2+0.05],
    [-w/2+0.05, d/2-0.05],[w/2-0.05, d/2-0.05]].forEach(([lx,lz]) => {
-    add(g, box(0.04,0.38,0.04), leg, lx, -0.19, lz);
+    add(g, box(0.04,0.38,0.04), leg, lx, 0.19, lz);
   });
 }
 
