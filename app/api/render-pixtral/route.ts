@@ -356,8 +356,8 @@ renderLayout = furniture.map((original: any) => {
     usedTypes.add(layoutItem.type + '_' + parsed.indexOf(layoutItem));
     return {
       ...original,
-      x: layoutItem.x,
-      z: layoutItem.z,
+      x: Math.max(0.3, Math.min(W - 0.3, layoutItem.x ?? original.x)),
+      z: Math.max(0.3, Math.min(L - 0.3, layoutItem.z ?? original.z)),
       rotation: layoutItem.rotation ?? original.rotation ?? 0,
       wall: layoutItem.wall ?? original.wall,
       shape: layoutItem.shape,
