@@ -94,7 +94,10 @@ export async function POST(req: NextRequest) {
     const sizeHint  = f.width && f.depth ? `(${f.width}m × ${f.depth}m)` : '';
     const price     = f.jysk_price ? `, ${f.jysk_price}` : '';
     // Реальное название JYSK товара — рендер должен показывать именно его
-    return `- ${colorDesc} ${typeToEN(f.type)}: JYSK "${jyskName}"${price} ${sizeHint}, ${position}`;
+    const exactSize = f.width && f.depth && f.height
+  ? `exactly ${f.width}m wide × ${f.depth}m deep × ${f.height}m tall`
+  : sizeHint;
+return `- ${colorDesc} ${typeToEN(f.type)}: JYSK "${jyskName}"${price}, ${exactSize}, ${position}`;
   }).join('\n');
 
     // ── Pixtral анализирует фото реальных товаров ─────────────────────────────
@@ -226,7 +229,7 @@ export async function POST(req: NextRequest) {
 
     // ── Базовый промпт ────────────────────────────────────────────────────────
     const basePrompt = `Professional architectural interior photography, ${styleData.mood}.
-${roomTypeEN}, ${W}m wide by ${L}m deep, ${H}m ceiling height.
+${roomTypeEN}, exactly ${W}m wide by ${L}m deep, ${H}m ceiling height. Render room with architecturally accurate proportions — walls, floor and ceiling must reflect these exact dimensions.
 ${wallDesc}, ${floorDesc}, accent color ${accentColorDesc}, clean baseboards.
 Atmosphere: ${styleData.atmosphere}. Lighting: ${styleData.lighting}.
 Material palette: ${styleData.materials}.
@@ -238,6 +241,7 @@ Each piece must look exactly like the real JYSK product listed above.
 ${pixtralContext ? `Product visual details from real photos: ${pixtralContext.substring(0, 400)}` : ''}
 ${wishes ? `Client requirements: ${wishes}` : ''}
 
+All furniture must be rendered at their exact real-world dimensions listed above. A 1.6m wide bed must look 1.6m wide relative to the ${W}m room. Maintain precise scale relationships between all objects.
 Shot on Phase One IQ4 150MP, 24mm tilt-shift lens, f/8, ISO 100.
 Ultra-photorealistic, 8K, ray-traced global illumination, physically accurate materials,
 professional color grading, magazine editorial quality, no people, no text.`;
