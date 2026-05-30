@@ -47,7 +47,6 @@ function colorToEN(hex: string): string {
 }
 
 // ── Очистка румынского/молдавского названия для промпта ──────────────────────
-// Убираем диакритику и переводим ключевые слова
 function cleanProductName(name: string | undefined, type: string): string {
   if (!name) return typeToEN(type);
   return name
@@ -76,27 +75,26 @@ export async function POST(req: NextRequest) {
     const H = parseFloat(height) || 2.7;
 
     const furniture = design?.furniture || [];
-    const wallColor  = design?.colors?.walls   || '#F4F0EA';
-    const floorColor = design?.colors?.floor   || '#C8B89A';
+    const wallColor   = design?.colors?.walls  || '#F4F0EA';
+    const floorColor  = design?.colors?.floor  || '#C8B89A';
     const accentColor = design?.colors?.accent || '#8B7355';
 
     console.log('render-pixtral start, furniture:', furniture.length);
 
     // ── Строим детальное описание мебели ─────────────────────────────────────
-    // Включаем: очищенное название, тип, цвет, позицию
     const furnitureLines = furniture
-  .filter((f: any) => !['curtains','painting','blanket','cushions','mirror'].includes(f.type))
-  .map((f: any) => {
-    const jyskName  = f.jysk_name || f.name || '';
-    const colorDesc = colorToEN(f.color);
-    const hex       = f.color ? ` (exact hex ${f.color})` : '';
-    const position  = positionToEN(f, W, L);
-    const exactSize = f.width && f.depth && f.height
-      ? `exactly ${f.width}m wide × ${f.depth}m deep × ${f.height}m tall`
-      : '';
-    const price     = f.jysk_price ? `, ${f.jysk_price}` : '';
-    return `- ${typeToEN(f.type)} "${jyskName}"${price}: color ${colorDesc}${hex}, ${exactSize}, ${position}`;
-  }).join('\n');
+      .filter((f: any) => !['curtains', 'painting', 'blanket', 'cushions', 'mirror'].includes(f.type))
+      .map((f: any) => {
+        const jyskName  = f.jysk_name || f.name || '';
+        const colorDesc = colorToEN(f.color);
+        const hex       = f.color ? ` (exact hex ${f.color})` : '';
+        const position  = positionToEN(f, W, L);
+        const exactSize = f.width && f.depth && f.height
+          ? `exactly ${f.width}m wide × ${f.depth}m deep × ${f.height}m tall`
+          : '';
+        const price = f.jysk_price ? `, ${f.jysk_price}` : '';
+        return `- ${typeToEN(f.type)} "${jyskName}"${price}: color ${colorDesc}${hex}, ${exactSize}, ${position}`;
+      }).join('\n');
 
     // ── Pixtral анализирует фото реальных товаров ─────────────────────────────
     const furnitureWithImages = furniture
@@ -113,9 +111,8 @@ export async function POST(req: NextRequest) {
             const buffer = await res.arrayBuffer();
             const base64 = Buffer.from(buffer).toString('base64');
             const mime = res.headers.get('content-type') || 'image/jpeg';
-            const cleanedName = cleanProductName(item.jysk_name || item.name, item.type);
             imageContents.push({ type: 'image_url', image_url: `data:${mime};base64,${base64}` });
-            imageContents.push({ type: 'text', text: `This is a ${typeToEN(item.type)} called "${cleanedName}". Color: ${colorToEN(item.color)}.` });
+            imageContents.push({ type: 'text', text: `This is a ${typeToEN(item.type)} called "${cleanProductName(item.jysk_name || item.name, item.type)}". Color: ${colorToEN(item.color)}.` });
           }
         } catch {}
       }
@@ -131,7 +128,7 @@ export async function POST(req: NextRequest) {
                 role: 'user',
                 content: [
                   ...imageContents,
-                  { type: 'text', text: `For each furniture piece shown, describe in ONE sentence its EXACT color (must match the product's real color: ${furnitureWithImages.map((f:any) => `${f.jysk_name}=${f.color}`).join(', ')}), material finish, and key visual details. Example: "warm beige fabric sofa with light oak legs matching hex #D4B896".` }
+                  { type: 'text', text: `For each furniture piece shown, describe in ONE sentence its EXACT color (must match the product's real color: ${furnitureWithImages.map((f: any) => `${f.jysk_name}=${f.color}`).join(', ')}), material finish, and key visual details. Example: "warm beige fabric sofa with light oak legs matching hex #D4B896".` },
                 ],
               }],
               max_tokens: 250,
@@ -148,46 +145,39 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Стили ─────────────────────────────────────────────────────────────────
-    const styleMap: Record<string, { mood: string; lighting: string; materials: string; atmosphere: string }> = {
+    const styleMap: Record<string, { mood: string; materials: string; atmosphere: string }> = {
       'Минимализм': {
         mood: 'minimalist Japandi interior design',
-        lighting: 'soft diffused daylight from large windows, subtle warm shadows, 2700K ambient glow',
         materials: 'white oak wood grain, matte plaster walls, natural linen textiles, brushed brass hardware',
         atmosphere: 'serene, uncluttered, zen-like tranquility',
       },
       'Скандинавский': {
         mood: 'Scandinavian hygge interior design',
-        lighting: 'warm afternoon golden-hour sunlight through sheer linen curtains',
         materials: 'light birch veneer, chunky wool, sheepskin throws, white-painted wood, rattan accents',
         atmosphere: 'warm, inviting, cozy Nordic atmosphere',
       },
       'Cozy / Уютный': {
         mood: 'cozy eclectic bohemian interior design',
-        lighting: 'warm layered lighting — floor lamps and table lamps creating pools of amber light',
         materials: 'terracotta ceramics, plush velvet, macrame, mixed wood tones, aged brass',
         atmosphere: 'rich, layered, personal and warm',
       },
       'Gaming Setup': {
         mood: 'premium gaming room interior design',
-        lighting: 'dramatic RGB LED ambient in blue-purple tones, focused desk lighting',
         materials: 'matte black surfaces, tempered glass, RGB peripherals, carbon fiber, LED strips',
         atmosphere: 'high-tech, dramatic, immersive gaming cave',
       },
       'Индустриальный': {
         mood: 'industrial loft interior design',
-        lighting: 'warm Edison bulb pendants against cool daylight, deep shadows',
         materials: 'exposed brick, raw steel, aged leather, reclaimed dark wood, concrete',
         atmosphere: 'raw, bold, sophisticated urban',
       },
       'Современный': {
         mood: 'contemporary modern interior design',
-        lighting: 'bright even lighting with recessed LED, clean crisp shadows',
         materials: 'glossy lacquer, chrome hardware, glass surfaces, smooth leather, neutral tones',
         atmosphere: 'sleek, polished, sophisticated',
       },
       'Классический': {
         mood: 'classic traditional interior design',
-        lighting: 'warm chandelier light with soft window daylight',
         materials: 'carved wood moldings, velvet upholstery, brass fixtures, parquet flooring, crown molding',
         atmosphere: 'elegant, timeless, refined',
       },
@@ -195,13 +185,12 @@ export async function POST(req: NextRequest) {
 
     const styleData = styleMap[style] || {
       mood: `${style} interior design`,
-      lighting: 'beautiful natural light',
       materials: 'high-quality furniture and premium finishes',
       atmosphere: 'elegant and comfortable',
     };
 
-    const wallColorDesc  = colorToEN(wallColor);
-    const floorColorDesc = colorToEN(floorColor);
+    const wallColorDesc   = colorToEN(wallColor);
+    const floorColorDesc  = colorToEN(floorColor);
     const accentColorDesc = colorToEN(accentColor);
 
     const wallDesc =
@@ -225,11 +214,39 @@ export async function POST(req: NextRequest) {
       .replace('студия', 'studio apartment')
       .replace('кабинет', 'home office');
 
-    // ── Базовый промпт ────────────────────────────────────────────────────────
+    // ── Сценарии освещения ────────────────────────────────────────────────────
+    const lightingScenarios = [
+      {
+        name: 'morning',
+        light: 'soft early morning light streaming from left window at low angle, long gentle shadows across floor, cool-to-warm gradient, mist-like atmosphere, 5500K natural daylight',
+        camera: 'wide establishing shot from corner near doorway, showing complete room, slight upward angle',
+      },
+      {
+        name: 'golden_hour',
+        light: 'warm golden-hour sunlight at 15-degree angle through window, deep amber pools on floor, long dramatic shadows, warm 3200K glow, dust particles visible in light beams',
+        camera: 'dynamic 3/4 perspective from 1.5m height, diagonal composition showing depth between furniture',
+      },
+      {
+        name: 'overcast',
+        light: 'soft overcast Nordic daylight, perfectly diffused shadowless light from large window, even cool-white illumination 6000K, no harsh shadows, milky sky visible outside',
+        camera: 'wide establishing shot from corner near doorway, showing complete room, slight upward angle',
+      },
+      {
+        name: 'evening',
+        light: 'warm evening interior lighting, floor lamp and table lamp creating amber pools 2700K, dark blue twilight visible through window, cozy contrast between warm interior and cool exterior',
+        camera: 'dynamic 3/4 perspective from 1.5m height, diagonal composition showing depth between furniture',
+      },
+    ];
+
+    // Рандомно выбираем 2 разных сценария
+    const shuffled = [...lightingScenarios].sort(() => Math.random() - 0.5);
+    const [scenario1, scenario2] = shuffled;
+
+    // ── Базовый промпт (без lighting — он в сценарии) ─────────────────────────
     const basePrompt = `Professional architectural interior photography, ${styleData.mood}.
 ${roomTypeEN}, exactly ${W}m wide by ${L}m deep, ${H}m ceiling height. Render room with architecturally accurate proportions — walls, floor and ceiling must reflect these exact dimensions.
 ${wallDesc}, ${floorDesc}, accent color ${accentColorDesc}, clean baseboards.
-Atmosphere: ${styleData.atmosphere}. Lighting: ${styleData.lighting}.
+Atmosphere: ${styleData.atmosphere}.
 Material palette: ${styleData.materials}.
 
 IMPORTANT: Render ONLY these exact JYSK products with their real colors and proportions:
@@ -245,21 +262,21 @@ Shot on Phase One IQ4 150MP, 24mm tilt-shift lens, f/8, ISO 100.
 Ultra-photorealistic, 8K, ray-traced global illumination, physically accurate materials,
 professional color grading, magazine editorial quality, no people, no text.`;
 
-    // ── Два варианта — разные углы ────────────────────────────────────────────
+    // ── Два варианта с разным светом и камерой ────────────────────────────────
     const variants = [
-      `${basePrompt} Camera: wide establishing shot from corner near doorway, showing complete room, slight upward angle.`,
-      `${basePrompt} Camera: dynamic 3/4 perspective from 1.5m height, diagonal composition showing depth between furniture.`,
+      `${basePrompt} Lighting: ${scenario1.light}. Camera: ${scenario1.camera}.`,
+      `${basePrompt} Lighting: ${scenario2.light}. Camera: ${scenario2.camera}.`,
     ];
 
     const images: string[] = [];
 
     for (const promptVariant of variants) {
       const negativePrompt = [
-  'cartoon', 'illustration', 'painting', 'sketch', 'anime', 'CGI look',
-  'plastic', 'blurry', 'oversaturated', 'distorted', 'fish-eye',
-  'people', 'humans', 'text', 'watermark', 'logo',
-  'low quality', 'dark', 'overexposed', 'noise', 'bad proportions',
-].join(', ');
+        'cartoon', 'illustration', 'painting', 'sketch', 'anime', 'CGI look',
+        'plastic', 'blurry', 'oversaturated', 'distorted', 'fish-eye',
+        'people', 'humans', 'text', 'watermark', 'logo',
+        'low quality', 'dark', 'overexposed', 'noise', 'bad proportions',
+      ].join(', ');
       const seed = Math.floor(Math.random() * 9999999);
       const encodedPrompt = encodeURIComponent(promptVariant);
       const encodedNeg    = encodeURIComponent(negativePrompt);
@@ -273,7 +290,7 @@ professional color grading, magazine editorial quality, no people, no text.`;
       for (const url of urls) {
         if (generated) break;
         try {
-          console.log('Trying:', url.includes('flux-pro') ? 'flux-pro' : 'flux');
+          console.log('Trying:', url.includes('flux-pro') ? 'flux-pro' : 'flux', '| Lighting:', url.includes('morning') ? 'morning' : url.includes('golden') ? 'golden_hour' : url.includes('overcast') ? 'overcast' : 'evening');
           const imgRes = await fetch(url, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
             signal: AbortSignal.timeout(90000),
@@ -300,7 +317,6 @@ professional color grading, magazine editorial quality, no people, no text.`;
     let renderLayout: any[] = [];
     if (images.length > 0) {
       try {
-        // Берём base64 первого рендера (убираем data:image/...;base64, prefix)
         const firstImageBase64 = images[0].split(',')[1];
         const firstImageMime = images[0].split(';')[0].split(':')[1];
 
@@ -325,14 +341,14 @@ Return ONLY a valid JSON array, no text before or after:
 Rules:
 - type: bed|sofa|wardrobe|dresser|desk|chair|table|shelf|lamp|plant|rug|nightstand|curtains|painting|blanket|cushions|mirror
 - x: distance from LEFT wall (0 to ${W})
-- z: distance from BACK wall (0 to ${L})  
+- z: distance from BACK wall (0 to ${L})
 - rotation: 0=facing viewer, 90=facing right wall, 180=facing back wall, 270=facing left wall
 - wall: which wall it's against (back/left/right/front/none)
 - shape for sofa: straight|L-shaped|corner|sectional
 - shape for bed: platform|panel|sleigh|standard
 - shape for table: round|rectangular|oval
-- Only include items clearly visible, max 12 items` }
-              ]
+- Only include items clearly visible, max 12 items` },
+              ],
             }],
             max_tokens: 800,
             temperature: 0.1,
@@ -347,28 +363,24 @@ Rules:
         if (arrMatch) {
           const parsed: any[] = JSON.parse(arrMatch[0]);
 
-          // Мержим с оригинальным design.furniture — сохраняем цвета, цены, ссылки
-          // Начинаем с оригинального списка — не теряем предметы
-const usedTypes = new Set<string>();
-renderLayout = furniture.map((original: any) => {
-  // Ищем соответствие в том что Pixtral увидел на рендере
-  const layoutItem = parsed.find(
-    (p: any) => p.type === original.type && !usedTypes.has(p.type + '_' + parsed.indexOf(p))
-  );
-  if (layoutItem) {
-    usedTypes.add(layoutItem.type + '_' + parsed.indexOf(layoutItem));
-    return {
-      ...original,
-      x: Math.max(0.3, Math.min(W - 0.3, layoutItem.x ?? original.x)),
-      z: Math.max(0.3, Math.min(L - 0.3, layoutItem.z ?? original.z)),
-      rotation: layoutItem.rotation ?? original.rotation ?? 0,
-      wall: layoutItem.wall ?? original.wall,
-      shape: layoutItem.shape,
-    };
-  }
-  // Pixtral не увидел этот предмет — оставляем оригинальные координаты
-  return original;
-});
+          const usedTypes = new Set<string>();
+          renderLayout = furniture.map((original: any) => {
+            const layoutItem = parsed.find(
+              (p: any) => p.type === original.type && !usedTypes.has(p.type + '_' + parsed.indexOf(p))
+            );
+            if (layoutItem) {
+              usedTypes.add(layoutItem.type + '_' + parsed.indexOf(layoutItem));
+              return {
+                ...original,
+                x: Math.max(0.3, Math.min(W - 0.3, layoutItem.x ?? original.x)),
+                z: Math.max(0.3, Math.min(L - 0.3, layoutItem.z ?? original.z)),
+                rotation: layoutItem.rotation ?? original.rotation ?? 0,
+                wall: layoutItem.wall ?? original.wall,
+                shape: layoutItem.shape,
+              };
+            }
+            return original;
+          });
 
           console.log('✅ Render layout merged:', renderLayout.length, 'items');
         }
@@ -380,8 +392,6 @@ renderLayout = furniture.map((original: any) => {
     return NextResponse.json({
       success: true,
       images,
-      // Если Pixtral прочитал рендер — передаём обновлённый layout
-      // page.tsx сохранит его в localStorage вместо оригинального design
       renderLayout: renderLayout.length > 0 ? renderLayout : null,
     });
 
