@@ -85,25 +85,23 @@ export async function POST(req: NextRequest) {
     // ── Строим детальное описание мебели ─────────────────────────────────────
     // Включаем: очищенное название, тип, цвет, позицию
     const furnitureLines = furniture
-    
   .filter((f: any) => !['curtains','painting','blanket','cushions','mirror'].includes(f.type))
   .map((f: any) => {
     const jyskName  = f.jysk_name || f.name || '';
     const colorDesc = colorToEN(f.color);
+    const hex       = f.color ? ` (exact hex ${f.color})` : '';
     const position  = positionToEN(f, W, L);
-    const sizeHint  = f.width && f.depth ? `(${f.width}m × ${f.depth}m)` : '';
-    const price     = f.jysk_price ? `, ${f.jysk_price}` : '';
-    // Реальное название JYSK товара — рендер должен показывать именно его
     const exactSize = f.width && f.depth && f.height
-  ? `exactly ${f.width}m wide × ${f.depth}m deep × ${f.height}m tall`
-  : sizeHint;
-return `- ${colorDesc} ${typeToEN(f.type)}: JYSK "${jyskName}"${price}, ${exactSize}, ${position}`;
+      ? `exactly ${f.width}m wide × ${f.depth}m deep × ${f.height}m tall`
+      : '';
+    const price     = f.jysk_price ? `, ${f.jysk_price}` : '';
+    return `- ${typeToEN(f.type)} "${jyskName}"${price}: color ${colorDesc}${hex}, ${exactSize}, ${position}`;
   }).join('\n');
 
     // ── Pixtral анализирует фото реальных товаров ─────────────────────────────
     const furnitureWithImages = furniture
       .filter((f: any) => f.image && ['bed', 'sofa', 'wardrobe', 'desk', 'chair'].includes(f.type))
-      .slice(0, 3);
+      .slice(0, 5);
 
     let pixtralContext = '';
     if (furnitureWithImages.length > 0) {
@@ -133,7 +131,7 @@ return `- ${colorDesc} ${typeToEN(f.type)}: JYSK "${jyskName}"${price}, ${exactS
                 role: 'user',
                 content: [
                   ...imageContents,
-                  { type: 'text', text: `For each furniture piece, describe in ONE sentence: exact color tone, material finish, and key visual details that would help an artist render it realistically. Be specific: "warm beige oak veneer with brushed brass legs" not just "wooden".` }
+                  { type: 'text', text: `For each furniture piece shown, describe in ONE sentence its EXACT color (must match the product's real color: ${furnitureWithImages.map((f:any) => `${f.jysk_name}=${f.color}`).join(', ')}), material finish, and key visual details. Example: "warm beige fabric sofa with light oak legs matching hex #D4B896".` }
                 ],
               }],
               max_tokens: 250,
@@ -238,6 +236,7 @@ IMPORTANT: Render ONLY these exact JYSK products with their real colors and prop
 ${furnitureLines}
 
 Each piece must look exactly like the real JYSK product listed above.
+CRITICAL COLOR ACCURACY: Render every piece in its EXACT color specified by hex code. Do NOT substitute colors — if hex is #D4B896 render warm sand beige, if #2A2A2A render near-black, if #8B6914 render warm oak brown. Color accuracy is the most important requirement.
 ${pixtralContext ? `Product visual details from real photos: ${pixtralContext.substring(0, 400)}` : ''}
 ${wishes ? `Client requirements: ${wishes}` : ''}
 
