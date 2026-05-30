@@ -50,6 +50,7 @@ function resolveCollision(
     let moved = false;
     for (const b of placedBoxes) {
       if ((FURNITURE_PRIORITY[b.type] ?? 3) >= myPriority) continue;
+if (WALL_TYPES.has(b.type) && WALL_TYPES.has(type)) continue; // стеновая мебель не толкает друг друга
       const overlapX = (sw / 2 + b.w / 2) - Math.abs(px - b.x);
       const overlapZ = (sd / 2 + b.d / 2) - Math.abs(pz - b.z);
       if (overlapX > 0 && overlapZ > 0) {
