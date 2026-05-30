@@ -667,10 +667,18 @@ function ViewerContent() {
     const animate = () => {
       raf = requestAnimationFrame(animate);
       controls.update();
-      const behind = camera.position.x > W * 0.75 || camera.position.z > L * 0.75;
-      const to = behind ? 0.04 : 0.07;
-      rightMat.opacity += (to - rightMat.opacity) * 0.08;
-      frontMat.opacity += (to - frontMat.opacity) * 0.08;
+
+      const camX = camera.position.x;
+      const camZ = camera.position.z;
+
+      // Правая стена — прозрачна когда камера правее комнаты
+      const rightTarget = camX > W + 0.5 ? 0.08 : 0.92;
+      rightMat.opacity += (rightTarget - rightMat.opacity) * 0.08;
+
+      // Передняя стена — прозрачна когда камера перед комнатой
+      const frontTarget = camZ > L + 0.5 ? 0.08 : 0.92;
+      frontMat.opacity += (frontTarget - frontMat.opacity) * 0.08;
+
       renderer.render(scene, camera);
     };
     animate();
