@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// ── Карта типов мебели → английский ──────────────────────────────────────────
 function typeToEN(type: string): string {
   const map: Record<string, string> = {
     bed: 'bed', sofa: 'sofa', wardrobe: 'wardrobe', desk: 'writing desk',
@@ -11,7 +10,6 @@ function typeToEN(type: string): string {
   return map[type] || type;
 }
 
-// ── Позиция предмета в комнате ────────────────────────────────────────────────
 function positionToEN(item: any, width: number, length: number): string {
   const x = parseFloat(item.x) || width / 2;
   const z = parseFloat(item.z) || length / 2;
@@ -25,7 +23,6 @@ function positionToEN(item: any, width: number, length: number): string {
   return `in the ${h}-${v} corner`;
 }
 
-// ── Hex → читаемое описание цвета ────────────────────────────────────────────
 function colorToEN(hex: string): string {
   if (!hex) return 'natural';
   const h = hex.replace('#', '').toLowerCase();
@@ -46,23 +43,16 @@ function colorToEN(hex: string): string {
   return 'neutral';
 }
 
-// ── Очистка румынского/молдавского названия для промпта ──────────────────────
 function cleanProductName(name: string | undefined, type: string): string {
   if (!name) return typeToEN(type);
   return name
     .replace(/[ăâîșțĂÂÎȘȚ]/g, (c) => ({ ă:'a', â:'a', î:'i', ș:'s', ț:'t', Ă:'A', Â:'A', Î:'I', Ș:'S', Ț:'T' }[c] || c))
-    .replace(/\bpat\b/gi, 'bed')
-    .replace(/\bTablie\b/gi, 'headboard')
-    .replace(/\bComoda\b/gi, 'chest of drawers')
-    .replace(/\bNoptiera\b/gi, 'nightstand')
-    .replace(/\bBirou\b/gi, 'desk')
-    .replace(/\bScaun\b/gi, 'chair')
-    .replace(/\bEtajera\b/gi, 'shelf')
-    .replace(/\bLampadar\b/gi, 'floor lamp')
-    .replace(/\bCovor\b/gi, 'rug')
-    .replace(/\bdulap\b/gi, 'wardrobe')
-    .replace(/\bsofa\b/gi, 'sofa')
-    .replace(/\bcanapea\b/gi, 'sofa');
+    .replace(/\bpat\b/gi, 'bed').replace(/\bTablie\b/gi, 'headboard')
+    .replace(/\bComoda\b/gi, 'chest of drawers').replace(/\bNoptiera\b/gi, 'nightstand')
+    .replace(/\bBirou\b/gi, 'desk').replace(/\bScaun\b/gi, 'chair')
+    .replace(/\bEtajera\b/gi, 'shelf').replace(/\bLampadar\b/gi, 'floor lamp')
+    .replace(/\bCovor\b/gi, 'rug').replace(/\bdulap\b/gi, 'wardrobe')
+    .replace(/\bsofa\b/gi, 'sofa').replace(/\bcanapea\b/gi, 'sofa');
 }
 
 export async function POST(req: NextRequest) {
@@ -81,7 +71,6 @@ export async function POST(req: NextRequest) {
 
     console.log('render-pixtral start, furniture:', furniture.length);
 
-    // ── Строим детальное описание мебели ─────────────────────────────────────
     const furnitureLines = furniture
       .filter((f: any) => !['curtains', 'painting', 'blanket', 'cushions', 'mirror'].includes(f.type))
       .map((f: any) => {
@@ -90,13 +79,11 @@ export async function POST(req: NextRequest) {
         const hex       = f.color ? ` (exact hex ${f.color})` : '';
         const position  = positionToEN(f, W, L);
         const exactSize = f.width && f.depth && f.height
-          ? `exactly ${f.width}m wide × ${f.depth}m deep × ${f.height}m tall`
-          : '';
+          ? `exactly ${f.width}m wide x ${f.depth}m deep x ${f.height}m tall` : '';
         const price = f.jysk_price ? `, ${f.jysk_price}` : '';
         return `- ${typeToEN(f.type)} "${jyskName}"${price}: color ${colorDesc}${hex}, ${exactSize}, ${position}`;
       }).join('\n');
 
-    // ── Pixtral анализирует фото реальных товаров ─────────────────────────────
     const furnitureWithImages = furniture
       .filter((f: any) => f.image && ['bed', 'sofa', 'wardrobe', 'desk', 'chair'].includes(f.type))
       .slice(0, 5);
@@ -116,7 +103,6 @@ export async function POST(req: NextRequest) {
           }
         } catch {}
       }
-
       if (imageContents.length > 0) {
         try {
           const pixtralRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -124,62 +110,80 @@ export async function POST(req: NextRequest) {
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.MISTRAL_API_KEY}` },
             body: JSON.stringify({
               model: 'pixtral-12b-2409',
-              messages: [{
-                role: 'user',
-                content: [
-                  ...imageContents,
-                  { type: 'text', text: `For each furniture piece shown, describe in ONE sentence its EXACT color (must match the product's real color: ${furnitureWithImages.map((f: any) => `${f.jysk_name}=${f.color}`).join(', ')}), material finish, and key visual details. Example: "warm beige fabric sofa with light oak legs matching hex #D4B896".` },
-                ],
-              }],
-              max_tokens: 250,
-              temperature: 0.1,
+              messages: [{ role: 'user', content: [
+                ...imageContents,
+                { type: 'text', text: `For each furniture piece shown, describe in ONE sentence its EXACT color (must match: ${furnitureWithImages.map((f: any) => `${f.jysk_name}=${f.color}`).join(', ')}), material finish, and key visual details. Example: "warm beige fabric sofa with light oak legs matching hex #D4B896".` },
+              ]}],
+              max_tokens: 250, temperature: 0.1,
             }),
           });
           const pixtralData = await pixtralRes.json();
           pixtralContext = pixtralData.choices?.[0]?.message?.content || '';
-          console.log('Pixtral context:', pixtralContext.substring(0, 200));
-        } catch (e) {
-          console.error('Pixtral context error:', e);
-        }
+        } catch (e) { console.error('Pixtral context error:', e); }
       }
     }
 
-    // ── Стили ─────────────────────────────────────────────────────────────────
+    // ── 11 стилей ─────────────────────────────────────────────────────────────
     const styleMap: Record<string, { mood: string; materials: string; atmosphere: string }> = {
       'Минимализм': {
-        mood: 'minimalist Japandi interior design',
-        materials: 'white oak wood grain, matte plaster walls, natural linen textiles, brushed brass hardware',
-        atmosphere: 'serene, uncluttered, zen-like tranquility',
+        mood: 'minimalist interior design, clean lines, neutral palette, intentional empty space',
+        materials: 'white oak wood, smooth matte plaster walls in white or light grey, natural linen curtains, simple geometric furniture with no ornamentation',
+        atmosphere: 'serene, uncluttered, calm — every object has a purpose, nothing is excessive',
+      },
+      'Japandi': {
+        mood: 'Japandi interior design — fusion of Japanese minimalism and Scandinavian warmth',
+        materials: 'light ash and walnut wood, wabi-sabi textured plaster in warm white, tatami-inspired textures, natural jute and linen, muted earth tones, simple black iron hardware',
+        atmosphere: 'peaceful, grounded, harmonious — warm minimalism with organic natural beauty',
       },
       'Скандинавский': {
-        mood: 'Scandinavian hygge interior design',
-        materials: 'light birch veneer, chunky wool, sheepskin throws, white-painted wood, rattan accents',
-        atmosphere: 'warm, inviting, cozy Nordic atmosphere',
-      },
-      'Cozy / Уютный': {
-        mood: 'cozy eclectic bohemian interior design',
-        materials: 'terracotta ceramics, plush velvet, macrame, mixed wood tones, aged brass',
-        atmosphere: 'rich, layered, personal and warm',
-      },
-      'Gaming Setup': {
-        mood: 'premium gaming room interior design',
-        materials: 'matte black surfaces, tempered glass, RGB peripherals, carbon fiber, LED strips',
-        atmosphere: 'high-tech, dramatic, immersive gaming cave',
-      },
-      'Индустриальный': {
-        mood: 'industrial loft interior design',
-        materials: 'exposed brick, raw steel, aged leather, reclaimed dark wood, concrete',
-        atmosphere: 'raw, bold, sophisticated urban',
+        mood: 'Scandinavian hygge interior design, bright and airy Nordic home',
+        materials: 'white painted walls, light birch and pine wood furniture, chunky knit wool throws, sheepskin rugs, linen cushions, rattan accents, simple black metal details',
+        atmosphere: 'warm, bright, inviting — cozy Nordic home filled with natural light and comfort',
       },
       'Современный': {
-        mood: 'contemporary modern interior design',
-        materials: 'glossy lacquer, chrome hardware, glass surfaces, smooth leather, neutral tones',
-        atmosphere: 'sleek, polished, sophisticated',
+        mood: 'contemporary modern interior design, clean sophisticated urban home',
+        materials: 'warm greige walls, smooth plaster, light oak or walnut veneer furniture, linen and cotton upholstery in cream and taupe, brushed brass hardware, large windows with sheer curtains',
+        atmosphere: 'sleek, polished, liveable — sophisticated but warm, modern without being cold',
+      },
+      'Cozy / Уютный': {
+        mood: 'cozy warm interior design, inviting comfortable home with soft layered textiles and warm amber lighting',
+        materials: 'warm white or soft cream painted walls, honey oak and walnut wood furniture, plush linen sofas, layered soft rugs, cotton throw blankets in warm tones, warm Edison bulb floor lamps, ceramic vases',
+        atmosphere: 'warm, soft, enveloping — like a hug, pools of warm amber light and soft textures everywhere',
+      },
+      'Бохо': {
+        mood: 'bohemian boho interior design, eclectic free-spirited home with global influences',
+        materials: 'terracotta and warm white walls, rattan and wicker furniture, macrame wall hangings, layered patterned rugs, mixed warm wood tones, velvet cushions in mustard and rust, abundant green plants, woven baskets',
+        atmosphere: 'free-spirited, artistic, layered — personal and collected, full of character and warmth',
       },
       'Классический': {
-        mood: 'classic traditional interior design',
-        materials: 'carved wood moldings, velvet upholstery, brass fixtures, parquet flooring, crown molding',
-        atmosphere: 'elegant, timeless, refined',
+        mood: 'classic traditional interior design, elegant timeless home with rich details',
+        materials: 'warm white walls with crown molding, herringbone parquet flooring, mahogany and dark walnut furniture, velvet upholstery in deep navy or emerald, brass and gold fixtures, ornate framed mirrors, heavy draped curtains',
+        atmosphere: 'elegant, refined, timeless — graceful symmetry and rich materials that never go out of style',
+      },
+      'Средиземноморский': {
+        mood: 'Mediterranean coastal interior design, sun-drenched villa with white walls and warm terracotta',
+        materials: 'crisp white stucco walls, terracotta tile flooring, wrought iron details, natural linen and cotton in white and azure blue, hand-painted ceramic tiles, wooden beam ceiling, arched doorways, olive plants',
+        atmosphere: 'bright, airy, sun-filled — relaxed coastal warmth with the charm of a Greek island villa',
+      },
+      'Индустриальный': {
+        mood: 'industrial loft interior design, urban warehouse apartment with exposed materials',
+        materials: 'exposed red brick walls, raw concrete ceiling, reclaimed dark wood furniture, aged black steel frames, cognac leather upholstery, Edison bulb pendant lights, metal pipe shelving',
+        atmosphere: 'raw, bold, urban — honest materials and dramatic masculine energy in an open space',
+      },
+      'Loft': {
+        mood: 'modern loft interior design, open-plan urban living space with high ceilings',
+        materials: 'light concrete walls, polished concrete floors, white painted brick accents, mid-century modern walnut furniture, open metal shelving, industrial pendant lights, floor-to-ceiling windows, minimal decor',
+        atmosphere: 'open, spacious, modern — the freedom of loft living with architectural character and light',
+      },
+      'Gaming Setup': {
+        mood: 'premium gaming room interior design, high-end esports battlestation setup',
+        materials: 'dark charcoal walls, RGB LED strip lighting in blue and purple, tempered glass and black matte desk surfaces, ergonomic gaming chair in black, monitor arms, acoustic foam panels, subtle ambient underlighting',
+        atmosphere: 'high-tech, dramatic, immersive — a serious gaming cave that means business',
+      },
+      'Не знаю — помогите выбрать': {
+        mood: 'contemporary Scandinavian interior design, universally appealing warm modern home',
+        materials: 'warm white walls, light oak wood furniture, natural linen textiles, soft grey and beige tones, clean-lined simple furniture, warm ambient lighting from floor lamp',
+        atmosphere: 'warm, bright, universally appealing — clean modern Scandinavian style that works for everyone',
       },
     };
 
@@ -208,11 +212,9 @@ export async function POST(req: NextRequest) {
       `${floorColorDesc} flooring`;
 
     const roomTypeEN = (roomType || 'living room').toLowerCase()
-      .replace('спальня', 'bedroom')
-      .replace('гостиная', 'living room')
+      .replace('спальня', 'bedroom').replace('гостиная', 'living room')
       .replace('кухня-гостиная', 'open-plan kitchen living room')
-      .replace('студия', 'studio apartment')
-      .replace('кабинет', 'home office');
+      .replace('студия', 'studio apartment').replace('кабинет', 'home office');
 
     // ── Сценарии освещения ────────────────────────────────────────────────────
     const lightingScenarios = [
@@ -238,13 +240,11 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    // Рандомно выбираем 2 разных сценария
     const shuffled = [...lightingScenarios].sort(() => Math.random() - 0.5);
     const [scenario1, scenario2] = shuffled;
 
-    // ── Базовый промпт (без lighting — он в сценарии) ─────────────────────────
     const basePrompt = `Professional architectural interior photography, ${styleData.mood}.
-${roomTypeEN}, exactly ${W}m wide by ${L}m deep, ${H}m ceiling height. Render room with architecturally accurate proportions — walls, floor and ceiling must reflect these exact dimensions.
+${roomTypeEN}, exactly ${W}m wide by ${L}m deep, ${H}m ceiling height. Render room with architecturally accurate proportions.
 ${wallDesc}, ${floorDesc}, accent color ${accentColorDesc}, clean baseboards.
 Atmosphere: ${styleData.atmosphere}.
 Material palette: ${styleData.materials}.
@@ -253,16 +253,14 @@ IMPORTANT: Render ONLY these exact JYSK products with their real colors and prop
 ${furnitureLines}
 
 Each piece must look exactly like the real JYSK product listed above.
-CRITICAL COLOR ACCURACY: Render every piece in its EXACT color specified by hex code. Do NOT substitute colors — if hex is #D4B896 render warm sand beige, if #2A2A2A render near-black, if #8B6914 render warm oak brown. Color accuracy is the most important requirement.
+CRITICAL COLOR ACCURACY: Render every piece in its EXACT color specified by hex code. Do NOT substitute colors — if hex is #D4B896 render warm sand beige, if #2A2A2A render near-black, if #8B6914 render warm oak brown.
 ${pixtralContext ? `Product visual details from real photos: ${pixtralContext.substring(0, 400)}` : ''}
 ${wishes ? `Client requirements: ${wishes}` : ''}
 
-All furniture must be rendered at their exact real-world dimensions listed above. A 1.6m wide bed must look 1.6m wide relative to the ${W}m room. Maintain precise scale relationships between all objects.
+All furniture at their exact real-world dimensions. A 1.6m wide bed must look 1.6m wide relative to the ${W}m room.
 Shot on Phase One IQ4 150MP, 24mm tilt-shift lens, f/8, ISO 100.
-Ultra-photorealistic, 8K, ray-traced global illumination, physically accurate materials,
-professional color grading, magazine editorial quality, no people, no text.`;
+Ultra-photorealistic, 8K, ray-traced global illumination, physically accurate materials, professional color grading, magazine editorial quality, no people, no text.`;
 
-    // ── Два варианта с разным светом и камерой ────────────────────────────────
     const variants = [
       `${basePrompt} Lighting: ${scenario1.light}. Camera: ${scenario1.camera}.`,
       `${basePrompt} Lighting: ${scenario2.light}. Camera: ${scenario2.camera}.`,
@@ -276,6 +274,7 @@ professional color grading, magazine editorial quality, no people, no text.`;
         'plastic', 'blurry', 'oversaturated', 'distorted', 'fish-eye',
         'people', 'humans', 'text', 'watermark', 'logo',
         'low quality', 'dark', 'overexposed', 'noise', 'bad proportions',
+        'concrete cave', 'brutalist', 'unfinished', 'abandoned', 'dirty walls',
       ].join(', ');
       const seed = Math.floor(Math.random() * 9999999);
       const encodedPrompt = encodeURIComponent(promptVariant);
@@ -290,7 +289,6 @@ professional color grading, magazine editorial quality, no people, no text.`;
       for (const url of urls) {
         if (generated) break;
         try {
-          console.log('Trying:', url.includes('flux-pro') ? 'flux-pro' : 'flux', '| Lighting:', url.includes('morning') ? 'morning' : url.includes('golden') ? 'golden_hour' : url.includes('overcast') ? 'overcast' : 'evening');
           const imgRes = await fetch(url, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
             signal: AbortSignal.timeout(90000),
@@ -300,69 +298,38 @@ professional color grading, magazine editorial quality, no people, no text.`;
             const base64 = Buffer.from(buffer).toString('base64');
             const mime = imgRes.headers.get('content-type') || 'image/jpeg';
             images.push(`data:${mime};base64,${base64}`);
-            console.log('✅ Image generated:', Math.round(buffer.byteLength / 1024), 'KB');
+            console.log('Image generated:', Math.round(buffer.byteLength / 1024), 'KB');
             generated = true;
-          } else {
-            console.error('❌ Pollinations failed:', imgRes.status);
           }
-        } catch (e) {
-          console.error('❌ Fetch error:', e);
-        }
+        } catch (e) { console.error('Fetch error:', e); }
       }
     }
 
-    console.log('Total images:', images.length);
-
-    // ── Pixtral анализирует рендер и возвращает позиции для 3D ───────────────
     let renderLayout: any[] = [];
     if (images.length > 0) {
       try {
         const firstImageBase64 = images[0].split(',')[1];
         const firstImageMime = images[0].split(';')[0].split(':')[1];
-
         const layoutRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.MISTRAL_API_KEY}` },
           body: JSON.stringify({
             model: 'pixtral-12b-2409',
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'image_url', image_url: `data:${firstImageMime};base64,${firstImageBase64}` },
-                { type: 'text', text: `Analyze this interior render. The room is ${W}m wide (x-axis: 0=left wall, ${W}=right wall) and ${L}m deep (z-axis: 0=back wall, ${L}=front/viewer side).
-
-For each furniture piece clearly visible, estimate its position and properties.
-Return ONLY a valid JSON array, no text before or after:
-[
-  {"type":"sofa","x":2.0,"z":1.2,"rotation":0,"wall":"back","shape":"straight"},
-  {"type":"table","x":2.5,"z":2.8,"rotation":0,"wall":"none","shape":"rectangular"}
-]
-
-Rules:
-- type: bed|sofa|wardrobe|dresser|desk|chair|table|shelf|lamp|plant|rug|nightstand|curtains|painting|blanket|cushions|mirror
-- x: distance from LEFT wall (0 to ${W})
-- z: distance from BACK wall (0 to ${L})
-- rotation: 0=facing viewer, 90=facing right wall, 180=facing back wall, 270=facing left wall
-- wall: which wall it's against (back/left/right/front/none)
-- shape for sofa: straight|L-shaped|corner|sectional
-- shape for bed: platform|panel|sleigh|standard
-- shape for table: round|rectangular|oval
-- Only include items clearly visible, max 12 items` },
-              ],
-            }],
-            max_tokens: 800,
-            temperature: 0.1,
+            messages: [{ role: 'user', content: [
+              { type: 'image_url', image_url: `data:${firstImageMime};base64,${firstImageBase64}` },
+              { type: 'text', text: `Analyze this interior render. Room is ${W}m wide (x: 0=left, ${W}=right) and ${L}m deep (z: 0=back, ${L}=front).
+Return ONLY valid JSON array:
+[{"type":"sofa","x":2.0,"z":1.2,"rotation":0,"wall":"back","shape":"straight"}]
+Rules: type=bed|sofa|wardrobe|dresser|desk|chair|table|shelf|lamp|plant|rug|nightstand, rotation=0(front)|90(right)|180(back)|270(left), max 12 items` },
+            ]}],
+            max_tokens: 800, temperature: 0.1,
           }),
         });
-
         const layoutData = await layoutRes.json();
         const layoutText = layoutData.choices?.[0]?.message?.content || '';
-        console.log('Render layout from Pixtral:', layoutText.substring(0, 400));
-
         const arrMatch = layoutText.match(/\[[\s\S]*\]/);
         if (arrMatch) {
           const parsed: any[] = JSON.parse(arrMatch[0]);
-
           const usedTypes = new Set<string>();
           renderLayout = furniture.map((original: any) => {
             const layoutItem = parsed.find(
@@ -381,20 +348,11 @@ Rules:
             }
             return original;
           });
-
-          console.log('✅ Render layout merged:', renderLayout.length, 'items');
         }
-      } catch (e) {
-        console.error('Render layout analysis error:', e);
-      }
+      } catch (e) { console.error('Render layout error:', e); }
     }
 
-    return NextResponse.json({
-      success: true,
-      images,
-      renderLayout: renderLayout.length > 0 ? renderLayout : null,
-    });
-
+    return NextResponse.json({ success: true, images, renderLayout: renderLayout.length > 0 ? renderLayout : null });
   } catch (error) {
     console.error('Render error:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
