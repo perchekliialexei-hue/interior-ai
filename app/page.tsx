@@ -466,23 +466,6 @@ export default function Home() {
                       rows={3}
                     />
                   </div>
-
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">Стиль</label>
-                    <select
-                      value={formData.style}
-                      onChange={e => setFormData({ ...formData, style: e.target.value })}
-                      className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
-                    >
-                      <option>Минимализм</option>
-                      <option>Скандинавский</option>
-                      <option>Cozy / Уютный</option>
-                      <option>Gaming Setup</option>
-                      <option>Индустриальный</option>
-                      <option>Не знаю — помогите выбрать</option>
-                    </select>
-                  </div>
-
                   <div>
                     <label className="text-sm text-gray-400 block mb-1">Пакет</label>
                     <select
