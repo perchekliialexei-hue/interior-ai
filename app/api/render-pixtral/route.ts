@@ -84,15 +84,18 @@ export async function POST(req: NextRequest) {
 
     // ── Строим детальное описание мебели ─────────────────────────────────────
     // Включаем: очищенное название, тип, цвет, позицию
-    const furnitureLines = furniture.map((f: any) => {
-      const cleanName = cleanProductName(f.jysk_name || f.name, f.type);
-      const colorDesc = colorToEN(f.color);
-      const position  = positionToEN(f, W, L);
-      const sizeHint  = f.width && f.depth
-        ? `(${f.width}m × ${f.depth}m)`
-        : '';
-      return `- ${colorDesc} ${typeToEN(f.type)} "${cleanName}" ${sizeHint}, ${position}`;
-    }).join('\n');
+    const furnitureLines = furniture
+    
+  .filter((f: any) => !['curtains','painting','blanket','cushions','mirror'].includes(f.type))
+  .map((f: any) => {
+    const jyskName  = f.jysk_name || f.name || '';
+    const colorDesc = colorToEN(f.color);
+    const position  = positionToEN(f, W, L);
+    const sizeHint  = f.width && f.depth ? `(${f.width}m × ${f.depth}m)` : '';
+    const price     = f.jysk_price ? `, ${f.jysk_price}` : '';
+    // Реальное название JYSK товара — рендер должен показывать именно его
+    return `- ${colorDesc} ${typeToEN(f.type)}: JYSK "${jyskName}"${price} ${sizeHint}, ${position}`;
+  }).join('\n');
 
     // ── Pixtral анализирует фото реальных товаров ─────────────────────────────
     const furnitureWithImages = furniture
@@ -228,22 +231,16 @@ ${wallDesc}, ${floorDesc}, accent color ${accentColorDesc}, clean baseboards.
 Atmosphere: ${styleData.atmosphere}. Lighting: ${styleData.lighting}.
 Material palette: ${styleData.materials}.
 
-Furniture (render each piece accurately matching its real appearance):
+IMPORTANT: Render ONLY these exact JYSK products with their real colors and proportions:
 ${furnitureLines}
 
-${pixtralContext ? `Exact visual descriptions from product photos: ${pixtralContext.substring(0, 400)}` : ''}
+Each piece must look exactly like the real JYSK product listed above.
+${pixtralContext ? `Product visual details from real photos: ${pixtralContext.substring(0, 400)}` : ''}
 ${wishes ? `Client requirements: ${wishes}` : ''}
 
 Shot on Phase One IQ4 150MP, 24mm tilt-shift lens, f/8, ISO 100.
 Ultra-photorealistic, 8K, ray-traced global illumination, physically accurate materials,
 professional color grading, magazine editorial quality, no people, no text.`;
-
-    const negativePrompt = [
-      'cartoon', 'illustration', 'painting', 'sketch', 'anime', 'CGI look',
-      'plastic', 'blurry', 'oversaturated', 'distorted', 'fish-eye',
-      'people', 'humans', 'text', 'watermark', 'logo',
-      'low quality', 'dark', 'overexposed', 'noise', 'bad proportions',
-    ].join(', ');
 
     // ── Два варианта — разные углы ────────────────────────────────────────────
     const variants = [
@@ -254,6 +251,12 @@ professional color grading, magazine editorial quality, no people, no text.`;
     const images: string[] = [];
 
     for (const promptVariant of variants) {
+      const negativePrompt = [
+  'cartoon', 'illustration', 'painting', 'sketch', 'anime', 'CGI look',
+  'plastic', 'blurry', 'oversaturated', 'distorted', 'fish-eye',
+  'people', 'humans', 'text', 'watermark', 'logo',
+  'low quality', 'dark', 'overexposed', 'noise', 'bad proportions',
+].join(', ');
       const seed = Math.floor(Math.random() * 9999999);
       const encodedPrompt = encodeURIComponent(promptVariant);
       const encodedNeg    = encodeURIComponent(negativePrompt);
