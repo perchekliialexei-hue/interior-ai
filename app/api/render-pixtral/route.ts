@@ -289,7 +289,95 @@ professional color grading, magazine editorial quality, no people, no text.`;
     }
 
     console.log('Total images:', images.length);
-    return NextResponse.json({ success: true, images });
+
+    // ── Pixtral анализирует рендер и возвращает позиции для 3D ───────────────
+    let renderLayout: any[] = [];
+    if (images.length > 0) {
+      try {
+        // Берём base64 первого рендера (убираем data:image/...;base64, prefix)
+        const firstImageBase64 = images[0].split(',')[1];
+        const firstImageMime = images[0].split(';')[0].split(':')[1];
+
+        const layoutRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.MISTRAL_API_KEY}` },
+          body: JSON.stringify({
+            model: 'pixtral-12b-2409',
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'image_url', image_url: `data:${firstImageMime};base64,${firstImageBase64}` },
+                { type: 'text', text: `Analyze this interior render. The room is ${W}m wide (x-axis: 0=left wall, ${W}=right wall) and ${L}m deep (z-axis: 0=back wall, ${L}=front/viewer side).
+
+For each furniture piece clearly visible, estimate its position and properties.
+Return ONLY a valid JSON array, no text before or after:
+[
+  {"type":"sofa","x":2.0,"z":1.2,"rotation":0,"wall":"back","shape":"straight"},
+  {"type":"table","x":2.5,"z":2.8,"rotation":0,"wall":"none","shape":"rectangular"}
+]
+
+Rules:
+- type: bed|sofa|wardrobe|dresser|desk|chair|table|shelf|lamp|plant|rug|nightstand|curtains|painting|blanket|cushions|mirror
+- x: distance from LEFT wall (0 to ${W})
+- z: distance from BACK wall (0 to ${L})  
+- rotation: 0=facing viewer, 90=facing right wall, 180=facing back wall, 270=facing left wall
+- wall: which wall it's against (back/left/right/front/none)
+- shape for sofa: straight|L-shaped|corner|sectional
+- shape for bed: platform|panel|sleigh|standard
+- shape for table: round|rectangular|oval
+- Only include items clearly visible, max 12 items` }
+              ]
+            }],
+            max_tokens: 800,
+            temperature: 0.1,
+          }),
+        });
+
+        const layoutData = await layoutRes.json();
+        const layoutText = layoutData.choices?.[0]?.message?.content || '';
+        console.log('Render layout from Pixtral:', layoutText.substring(0, 400));
+
+        const arrMatch = layoutText.match(/\[[\s\S]*\]/);
+        if (arrMatch) {
+          const parsed: any[] = JSON.parse(arrMatch[0]);
+
+          // Мержим с оригинальным design.furniture — сохраняем цвета, цены, ссылки
+          // Начинаем с оригинального списка — не теряем предметы
+const usedTypes = new Set<string>();
+renderLayout = furniture.map((original: any) => {
+  // Ищем соответствие в том что Pixtral увидел на рендере
+  const layoutItem = parsed.find(
+    (p: any) => p.type === original.type && !usedTypes.has(p.type + '_' + parsed.indexOf(p))
+  );
+  if (layoutItem) {
+    usedTypes.add(layoutItem.type + '_' + parsed.indexOf(layoutItem));
+    return {
+      ...original,
+      x: layoutItem.x,
+      z: layoutItem.z,
+      rotation: layoutItem.rotation ?? original.rotation ?? 0,
+      wall: layoutItem.wall ?? original.wall,
+      shape: layoutItem.shape,
+    };
+  }
+  // Pixtral не увидел этот предмет — оставляем оригинальные координаты
+  return original;
+});
+
+          console.log('✅ Render layout merged:', renderLayout.length, 'items');
+        }
+      } catch (e) {
+        console.error('Render layout analysis error:', e);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      images,
+      // Если Pixtral прочитал рендер — передаём обновлённый layout
+      // page.tsx сохранит его в localStorage вместо оригинального design
+      renderLayout: renderLayout.length > 0 ? renderLayout : null,
+    });
 
   } catch (error) {
     console.error('Render error:', error);
