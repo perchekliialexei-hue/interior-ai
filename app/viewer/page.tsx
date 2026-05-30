@@ -606,10 +606,12 @@ function ViewerContent() {
     }
 
     // ── Стены ──
-    const wm = new THREE.MeshStandardMaterial({ color: wallC, roughness: 0.90 });
-    const backW = new THREE.Mesh(box(W + 0.22, H + 0.06, 0.10), wm);
+    const backMat = new THREE.MeshStandardMaterial({ color: wallC, roughness: 0.90, transparent: true, opacity: 0.92 });
+    const leftMat = new THREE.MeshStandardMaterial({ color: wallC, roughness: 0.90, transparent: true, opacity: 0.92 });
+    const wm = backMat; // для плинтусов используем тот же материал
+    const backW = new THREE.Mesh(box(W + 0.22, H + 0.06, 0.10), backMat);
     backW.position.set(W / 2, H / 2, -0.05); backW.receiveShadow = true; scene.add(backW);
-    const leftW = new THREE.Mesh(box(0.10, H + 0.06, L + 0.22), wm);
+    const leftW = new THREE.Mesh(box(0.10, H + 0.06, L + 0.22), leftMat);
     leftW.position.set(-0.05, H / 2, L / 2); leftW.receiveShadow = true; scene.add(leftW);
 
     const rightMat = new THREE.MeshStandardMaterial({ color: wallC, roughness: 0.90, transparent: true, opacity: 0.06, side: THREE.FrontSide, depthWrite: false });
@@ -647,9 +649,24 @@ function ViewerContent() {
     const cross = new THREE.Mesh(box(winW, ft*0.6, 0.04), fm);
     cross.position.set(wx, winY, 0.03); scene.add(cross);
 
+    // Массивы декора по стенам для синхронной прозрачности
+    const backWallObjects: THREE.Object3D[] = [backW];
+    const leftWallObjects: THREE.Object3D[] = [leftW];
+    const rightWallObjects: THREE.Object3D[] = [rightW];
+    const frontWallObjects: THREE.Object3D[] = [frontW];
+
     // ── Мебель и декор ──
     if (d?.furniture?.length > 0) {
       d.furniture.forEach((item: any) => place(scene, item, W, L, H));
+      // Привязываем декор к стенам по позиции
+    scene.children.forEach(obj => {
+      if (!(obj instanceof THREE.Group)) return;
+      const pos = obj.position;
+      if (pos.z < 0.3) backWallObjects.push(obj);           // задняя стена
+      else if (pos.x < 0.3) leftWallObjects.push(obj);      // левая стена
+      else if (pos.x > W - 0.3) rightWallObjects.push(obj); // правая стена
+      else if (pos.z > L - 0.3) frontWallObjects.push(obj); // передняя стена
+    });
     } else {
       // Демо-сцена
       place(scene,{type:'bed',       x:W*0.5, z:L*0.20,width:1.6,depth:2.0,height:0.5, color:'#8B7355',rotation:180,wall:'back'},W,L,H);
@@ -671,13 +688,34 @@ function ViewerContent() {
       const camX = camera.position.x;
       const camZ = camera.position.z;
 
-      // Правая стена — прозрачна когда камера правее комнаты
-      const rightTarget = camX > W + 0.5 ? 0.08 : 0.92;
-      rightMat.opacity += (rightTarget - rightMat.opacity) * 0.08;
+      // Прозрачность стен и декора на них
+      const backTarget  = camZ < -0.8 ? 0.0 : 0.92;
+      const leftTarget  = camX < -0.8 ? 0.0 : 0.92;
+      const rightTarget = camX > W + 0.8 ? 0.0 : 0.92;
+      const frontTarget = camZ > L + 0.8 ? 0.0 : 0.92;
 
-      // Передняя стена — прозрачна когда камера перед комнатой
-      const frontTarget = camZ > L + 0.5 ? 0.08 : 0.92;
-      frontMat.opacity += (frontTarget - frontMat.opacity) * 0.08;
+      const lerp = 0.08;
+      backMat.opacity  += (backTarget  - backMat.opacity)  * lerp;
+      leftMat.opacity  += (leftTarget  - leftMat.opacity)  * lerp;
+      rightMat.opacity += (rightTarget - rightMat.opacity) * lerp;
+      frontMat.opacity += (frontTarget - frontMat.opacity) * lerp;
+
+      // Декор на стенах исчезает вместе со стеной
+      const setGroupOpacity = (objects: THREE.Object3D[], opacity: number) => {
+        objects.forEach(obj => {
+          obj.traverse(child => {
+            if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+              child.material.transparent = true;
+              child.material.opacity += (opacity - child.material.opacity) * lerp;
+            }
+          });
+        });
+      };
+
+      setGroupOpacity(backWallObjects,  backMat.opacity);
+      setGroupOpacity(leftWallObjects,  leftMat.opacity);
+      setGroupOpacity(rightWallObjects, rightMat.opacity);
+      setGroupOpacity(frontWallObjects, frontMat.opacity);
 
       renderer.render(scene, camera);
     };
