@@ -667,27 +667,11 @@ function ViewerContent() {
     const animate = () => {
       raf = requestAnimationFrame(animate);
       controls.update();
-      // Вектор от камеры к центру комнаты
-      const centerX = W / 2;
-      const centerZ = L / 2;
-      const camX = camera.position.x;
-      const camZ = camera.position.z;
-
-      // Правая стена (x = W) прозрачна если камера правее центра И смотрит влево
-      const cameraRightOfRoom = camX > W * 0.8;
-      const rightTarget = cameraRightOfRoom ? 0.08 : 0.92;
-      rightMat.opacity += (rightTarget - rightMat.opacity) * 0.08;
-
-      // Передняя стена (z = L) прозрачна если камера перед комнатой И смотрит назад
-      const cameraFrontOfRoom = camZ > L * 0.8;
-      const frontTarget = cameraFrontOfRoom ? 0.08 : 0.92;
-      frontMat.opacity += (frontTarget - frontMat.opacity) * 0.08;
-
-      // Задняя стена (z = 0) прозрачна если камера зашла за комнату
-      const cameraBehindRoom = camZ < -0.5;
-      backW.material = cameraBehindRoom
-        ? new THREE.MeshStandardMaterial({ color: wallC, roughness: 0.90, transparent: true, opacity: 0.08 })
-        : wm;
+      const behind = camera.position.x > W * 0.75 || camera.position.z > L * 0.75;
+      const to = behind ? 0.04 : 0.07;
+      rightMat.opacity += (to - rightMat.opacity) * 0.08;
+      frontMat.opacity += (to - frontMat.opacity) * 0.08;
+      renderer.render(scene, camera);
     };
     animate();
 
