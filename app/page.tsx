@@ -88,7 +88,6 @@ export default function Home() {
       // Step 5: renders
       setCurrentStep(5);
       // FIX 4: safely handle render errors
-      let renderImages: string[] = [];
       try {
         const renderRes = await fetch('/api/render-pixtral', {
           method: 'POST',
@@ -105,13 +104,16 @@ export default function Home() {
           }),
         });
         const renderData = await renderRes.json();
-        renderImages = renderData.images ?? [];
-      } catch (renderErr) {
-        console.error('Render step failed (non-fatal):', renderErr);
+      if (renderData.images?.length > 0) {
+        localStorage.setItem('roomRenders', JSON.stringify(renderData.images));
       }
-
-      if (renderImages.length > 0) {
-        localStorage.setItem('roomRenders', JSON.stringify(renderImages));
+      // Если Pixtral прочитал рендер и вернул точные позиции — обновляем дизайн
+      if (renderData.renderLayout && design) {
+        const updatedDesign = { ...design, furniture: renderData.renderLayout };
+        localStorage.setItem('roomDesign', JSON.stringify(updatedDesign));
+      }
+      } catch (renderError) {
+        console.error('Render error:', renderError);
       }
 
       // Step 6: order email
