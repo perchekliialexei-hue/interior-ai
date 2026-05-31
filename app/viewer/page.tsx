@@ -383,6 +383,31 @@ function buildWoodCeiling(scene: THREE.Scene, W: number, L: number, H: number, c
   }
 }
 
+// ── CONTACT SHADOWS ──────────────────────────────────────────────────────────
+function addContactShadow(scene: THREE.Scene, px: number, pz: number, sw: number, sd: number, rot: number) {
+  const rotRad = (rot * Math.PI) / 180;
+  const shadowW = rot === 90 || rot === 270 ? sd : sw;
+  const shadowD = rot === 90 || rot === 270 ? sw : sd;
+
+  const geo = new THREE.PlaneGeometry(shadowW * 0.92, shadowD * 0.88);
+  const m = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false });
+  const shadow = new THREE.Mesh(geo, m);
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.rotation.z = rotRad;
+  shadow.position.set(px, 0.003, pz);
+  shadow.renderOrder = 1;
+  scene.add(shadow);
+
+  const geoOuter = new THREE.PlaneGeometry(shadowW * 1.15, shadowD * 1.10);
+  const mOuter = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.07, depthWrite: false });
+  const shadowOuter = new THREE.Mesh(geoOuter, mOuter);
+  shadowOuter.rotation.x = -Math.PI / 2;
+  shadowOuter.rotation.z = rotRad;
+  shadowOuter.position.set(px, 0.002, pz);
+  shadowOuter.renderOrder = 0;
+  scene.add(shadowOuter);
+}
+
 // ── MASTER PLACER ────────────────────────────────────────────────────────────
 function place(scene: THREE.Scene, item: any, roomW: number, roomL: number, roomH: number) {
   const c  = hex(item.color, 0x8B7355);
@@ -474,6 +499,42 @@ if (item.type === 'shelf') {
   // Обычная мебель
   g.position.set(px, 0, pz);
   scene.add(g);
+
+function addContactShadow(scene: THREE.Scene, px: number, pz: number, sw: number, sd: number, rot: number) {
+  const rotRad = (rot * Math.PI) / 180;
+  const shadowW = rot === 90 || rot === 270 ? sd : sw;
+  const shadowD = rot === 90 || rot === 270 ? sw : sd;
+
+  // Основная тень — тёмный эллипс
+  const geo = new THREE.PlaneGeometry(shadowW * 0.92, shadowD * 0.88, 1, 1);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false,
+  });
+  const shadow = new THREE.Mesh(geo, mat);
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.rotation.z = rotRad;
+  shadow.position.set(px, 0.003, pz);
+  shadow.renderOrder = 1;
+  scene.add(shadow);
+
+  // Мягкий ореол вокруг — чуть больше и прозрачнее
+  const geoOuter = new THREE.PlaneGeometry(shadowW * 1.15, shadowD * 1.10, 1, 1);
+  const matOuter = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.07,
+    depthWrite: false,
+  });
+  const shadowOuter = new THREE.Mesh(geoOuter, matOuter);
+  shadowOuter.rotation.x = -Math.PI / 2;
+  shadowOuter.rotation.z = rotRad;
+  shadowOuter.position.set(px, 0.002, pz);
+  shadowOuter.renderOrder = 0;
+  scene.add(shadowOuter);
+}
 
   switch (item.type) {
     case 'bed':        addBed(g, iw, id, c);                          break;
