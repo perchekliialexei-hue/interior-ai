@@ -417,6 +417,22 @@ export default function Home() {
                   </div>
 
                   <div>
+                    <label className="text-sm text-gray-400 block mb-1">Тип комнаты</label>
+                    <select
+                      value={formData.roomType}
+                      onChange={e => setFormData({ ...formData, roomType: e.target.value })}
+                      className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
+                    >
+                      <option>Спальня</option>
+                      <option>Гостиная</option>
+                      <option>Кабинет / Home Office</option>
+                      <option>Gaming Room</option>
+                      <option>Кафе / Офис</option>
+                      <option>Другое</option>
+                    </select>
+                  </div>
+
+                  <div>
                     <label className="text-sm text-gray-400 block mb-1">Стиль</label>
                     <select
                       value={formData.style}
