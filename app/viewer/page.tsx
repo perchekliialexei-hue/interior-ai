@@ -12,6 +12,90 @@ const hex = (s: string | undefined, fallback: number): number =>
 const mat = (color: number, roughness = 0.75, metalness = 0.0) =>
   new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
+// ── Процедурная текстура дерева ───────────────────────────────────────────────
+function woodMat(color: number, roughness = 0.72): THREE.MeshStandardMaterial {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8)  & 0xff;
+  const b =  color        & 0xff;
+
+  // Базовый фон
+  ctx.fillStyle = `rgb(${r},${g},${b})`;
+  ctx.fillRect(0, 0, size, size);
+
+  // Волокна дерева — горизонтальные полосы с шумом
+  for (let i = 0; i < 40; i++) {
+    const y = (i / 40) * size;
+    const shade = (Math.random() - 0.5) * 22;
+    const nr = Math.max(0, Math.min(255, r + shade));
+    const ng = Math.max(0, Math.min(255, g + shade * 0.8));
+    const nb = Math.max(0, Math.min(255, b + shade * 0.5));
+    ctx.strokeStyle = `rgba(${nr},${ng},${nb},0.55)`;
+    ctx.lineWidth = 1.5 + Math.random() * 3;
+    ctx.beginPath();
+    ctx.moveTo(0, y + Math.sin(i) * 3);
+    // Лёгкий изгиб волокна
+    ctx.bezierCurveTo(
+      size * 0.25, y + (Math.random() - 0.5) * 6,
+      size * 0.75, y + (Math.random() - 0.5) * 6,
+      size,        y + Math.sin(i + 1) * 3
+    );
+    ctx.stroke();
+  }
+
+  // Тонкие тёмные прожилки
+  for (let i = 0; i < 8; i++) {
+    const y = Math.random() * size;
+    ctx.strokeStyle = `rgba(${Math.max(0,r-30)},${Math.max(0,g-25)},${Math.max(0,b-20)},0.3)`;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(size*0.3, y+(Math.random()-0.5)*12, size*0.7, y+(Math.random()-0.5)*12, size, y);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(2, 4);
+
+  return new THREE.MeshStandardMaterial({ map: texture, roughness, metalness: 0.0 });
+}
+
+// ── Процедурная текстура ткани ────────────────────────────────────────────────
+function fabricMat(color: number, roughness = 0.92): THREE.MeshStandardMaterial {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8)  & 0xff;
+  const b =  color        & 0xff;
+
+  ctx.fillStyle = `rgb(${r},${g},${b})`;
+  ctx.fillRect(0, 0, size, size);
+
+  // Переплетение нитей
+  for (let i = 0; i < size; i += 4) {
+    const shade = i % 8 === 0 ? -12 : 8;
+    ctx.fillStyle = `rgba(${Math.max(0,r+shade)},${Math.max(0,g+shade)},${Math.max(0,b+shade)},0.4)`;
+    ctx.fillRect(0, i, size, 2);
+    ctx.fillRect(i, 0, 2, size);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4, 4);
+
+  return new THREE.MeshStandardMaterial({ map: texture, roughness, metalness: 0.0 });
+}
+
 const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
 const cyl = (rt: number, rb: number, h: number, seg = 12) =>
   new THREE.CylinderGeometry(rt, rb, h, seg);
@@ -187,7 +271,7 @@ function addMirror(g: THREE.Group, w: number, h: number, c: number) {
 
 // ── КРОВАТЬ ──────────────────────────────────────────────────────────────────
 function addBed(g: THREE.Group, w: number, d: number, c: number) {
-  const wood = mat(c, 0.72);
+  const wood = woodMat(c);
   const fabC = Math.min(0xFFFFFF, c + 0x303030);
   add(g, box(w, 0.08, d), wood, 0, 0.04, 0);
   const lh = 0.18;
@@ -205,7 +289,7 @@ function addBed(g: THREE.Group, w: number, d: number, c: number) {
 
 // ── ДИВАН ────────────────────────────────────────────────────────────────────
 function addSofa(g: THREE.Group, w: number, d: number, c: number) {
-  const fab  = mat(c, 0.88);
+  const fab = fabricMat(c);
   const dark = mat(Math.max(0, c-0x1A1A1A), 0.70);
   const leg  = mat(0x5A5A5A, 0.35, 0.65);
   add(g, box(w,0.26,d), dark, 0, 0.23, 0);
@@ -416,7 +500,6 @@ function addContactShadow(scene: THREE.Scene, px: number, pz: number, sw: number
 
 // ── MASTER PLACER ────────────────────────────────────────────────────────────
 function place(scene: THREE.Scene, item: any, roomW: number, roomL: number, roomH: number) {
-  console.log('place:', item.type, 'x:', item.x, 'z:', item.z, 'wall:', item.wall, 'rot:', item.rotation);
   const c  = hex(item.color, 0x8B7355);
   const iw = Math.max(0.2, Math.min(item.width  ?? 1.0, roomW * 0.95));
   const id = Math.max(0.1, Math.min(item.depth  ?? 0.6, roomL * 0.95));
