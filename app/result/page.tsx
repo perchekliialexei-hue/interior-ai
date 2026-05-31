@@ -1,81 +1,22 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Share2, Check, Copy, ExternalLink } from 'lucide-react';
 
 export default function Result() {
   const [renders, setRenders] = useState<string[]>([]);
   const [selected, setSelected] = useState(0);
   const [design, setDesign] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [shareUrl, setShareUrl] = useState('');
-  const [sharing, setSharing] = useState(false);
-  const [copied, setCopied] = useState(false);
   const router = useRouter();
-  const params = useParams();
-  const sharedId = params?.id as string | undefined;
 
   useEffect(() => {
-    const load = async () => {
-      if (sharedId) {
-        // Загружаем из Redis по ID
-        try {
-          const res = await fetch(`/api/share?id=${sharedId}`);
-          const data = await res.json();
-          if (data.success) {
-            setDesign(data.design);
-            setRenders(data.renders || []);
-            setShareUrl(`${window.location.origin}/result/${sharedId}`);
-          }
-        } catch {}
-      } else {
-        // Загружаем из localStorage
-        const savedRenders = localStorage.getItem('roomRenders');
-        const savedDesign = localStorage.getItem('roomDesign');
-        if (savedRenders) setRenders(JSON.parse(savedRenders));
-        if (savedDesign) setDesign(JSON.parse(savedDesign));
-      }
-      setLoading(false);
-    };
-    load();
-  }, [sharedId]);
-
-  const handleShare = async () => {
-    if (shareUrl) {
-      // Уже есть ссылка — просто копируем
-      copyToClipboard(shareUrl);
-      return;
-    }
-    setSharing(true);
-    try {
-      const res = await fetch('/api/share', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          design,
-          renders,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        const url = `${window.location.origin}${data.url}`;
-        setShareUrl(url);
-        copyToClipboard(url);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSharing(false);
-    }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    });
-  };
+    const savedRenders = localStorage.getItem('roomRenders');
+    const savedDesign = localStorage.getItem('roomDesign');
+    if (savedRenders) setRenders(JSON.parse(savedRenders));
+    if (savedDesign) setDesign(JSON.parse(savedDesign));
+    setLoading(false);
+  }, []);
 
   const furniture = design?.furniture || [];
   const total = furniture.reduce((sum: number, item: any) => {
@@ -100,51 +41,11 @@ export default function Result() {
         <a href="/" className="text-lg font-bold tracking-tight">
           Interior<span className="text-violet-400">AI</span>
         </a>
-        <div className="flex items-center gap-3">
-          {/* Кнопка Поделиться */}
-          <button
-            onClick={handleShare}
-            disabled={sharing}
-            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/50 transition px-4 py-2 rounded-full text-sm font-medium disabled:opacity-50"
-          >
-            {sharing ? (
-              <span className="animate-pulse">Сохраняем...</span>
-            ) : copied ? (
-              <><Check size={14} className="text-green-400" /> Скопировано!</>
-            ) : shareUrl ? (
-              <><Copy size={14} /> Копировать ссылку</>
-            ) : (
-              <><Share2 size={14} /> Поделиться</>
-            )}
-          </button>
-          <div className="text-right">
-            <div className="text-sm text-violet-400 font-medium">{design?.style || 'Дизайн'}</div>
-            <div className="text-xs text-gray-500">{design?.width || 4}м × {design?.length || 5}м × {design?.height || 2.7}м</div>
-          </div>
+        <div className="text-right">
+          <div className="text-sm text-violet-400 font-medium">{design?.style || 'Дизайн'}</div>
+          <div className="text-xs text-gray-500">{design?.width || 4}м × {design?.length || 5}м × {design?.height || 2.7}м</div>
         </div>
       </nav>
-
-      {/* Показываем ссылку если создана */}
-      {shareUrl && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-          className="bg-violet-500/10 border-b border-violet-500/20 px-8 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm">
-            <Check size={14} className="text-violet-400" />
-            <span className="text-gray-300">Ссылка создана:</span>
-            <span className="text-violet-400 font-mono text-xs truncate max-w-xs">{shareUrl}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => copyToClipboard(shareUrl)}
-              className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition">
-              <Copy size={12} /> Копировать
-            </button>
-            <a href={shareUrl} target="_blank" rel="noopener noreferrer"
-              className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition">
-              <ExternalLink size={12} /> Открыть
-            </a>
-          </div>
-        </motion.div>
-      )}
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid lg:grid-cols-2 gap-8">
@@ -154,11 +55,16 @@ export default function Result() {
             <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Варианты дизайна</h2>
             <div className="space-y-4">
               {renders.length > 0 ? renders.map((src, i) => (
-                <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
                   onClick={() => setSelected(i)}
                   className={`relative cursor-pointer rounded-2xl overflow-hidden border-2 transition-all ${
                     selected === i ? 'border-violet-500 shadow-lg shadow-violet-500/20' : 'border-white/10 hover:border-white/30'
-                  }`}>
+                  }`}
+                >
                   <img src={src} alt={`Вариант ${i + 1}`} className="w-full object-cover" />
                   <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium">
                     Вариант {i + 1}
@@ -177,16 +83,22 @@ export default function Result() {
             </div>
           </div>
 
-          {/* Правая колонка */}
+          {/* Правая колонка — концепт + мебель */}
           <div className="space-y-6">
+
+            {/* Концепт */}
             {design?.concept && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-violet-500/10 border border-violet-500/20 rounded-2xl p-5">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-violet-500/10 border border-violet-500/20 rounded-2xl p-5"
+              >
                 <div className="text-xs text-violet-400 font-medium mb-2 uppercase tracking-wider">✨ Концепт дизайна</div>
                 <p className="text-sm text-gray-300 leading-relaxed">{design.concept}</p>
               </motion.div>
             )}
 
+            {/* Список мебели */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Мебель из дизайна</h2>
@@ -197,11 +109,16 @@ export default function Result() {
 
               <div className="space-y-2">
                 {furniture.map((item: any, i: number) => (
-                  <motion.a key={i}
-                    href={item.jysk_url || 'https://jysk.md'}
-                    target="_blank" rel="noopener noreferrer"
-                    initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                    className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3 hover:border-violet-500/40 hover:bg-violet-500/5 transition-all group">
+                  <motion.a
+                    key={i}
+                    href={item.jysk_url || item.shop_url || 'https://jysk.md'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3 hover:border-violet-500/40 hover:bg-violet-500/5 transition-all group"
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: item.color || '#888' }} />
                       <span className="text-sm text-gray-300 group-hover:text-white transition truncate max-w-[200px]">
@@ -209,13 +126,16 @@ export default function Result() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-violet-400 font-semibold text-sm">{item.jysk_price || item.price || '—'}</span>
+                      <span className="text-violet-400 font-semibold text-sm">
+                        {item.jysk_price || item.price || '—'}
+                      </span>
                       <span className="text-gray-600 text-xs group-hover:text-gray-400 transition">→</span>
                     </div>
                   </motion.a>
                 ))}
               </div>
 
+              {/* Итого */}
               {total > 0 && (
                 <div className="mt-4 flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3">
                   <span className="text-sm text-gray-400 font-medium">Итого</span>
@@ -224,9 +144,14 @@ export default function Result() {
               )}
             </div>
 
-            <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+            {/* Кнопка 3D */}
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
               onClick={handleViewIn3D}
-              className="w-full bg-violet-600 hover:bg-violet-500 transition py-4 rounded-2xl font-semibold text-lg">
+              className="w-full bg-violet-600 hover:bg-violet-500 transition py-4 rounded-2xl font-semibold text-lg"
+            >
               Смотреть в 3D →
             </motion.button>
 
