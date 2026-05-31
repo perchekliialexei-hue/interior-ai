@@ -76,12 +76,12 @@ function snapToWall(
   wallHint?: string
 ): [number, number] {
   const G = 0.02;
-  // Используем wall hint от AI если есть
   const wall = wallHint || (rot === 0 ? 'back' : rot === 90 ? 'right' : rot === 180 ? 'front' : rot === 270 ? 'left' : 'back');
+  // sw/sd уже учитывают поворот (snapW/snapD из place)
   switch (wall) {
     case 'back':  return [Math.max(sw/2+G, Math.min(W-sw/2-G, px)), sd/2+G];
     case 'front': return [Math.max(sw/2+G, Math.min(W-sw/2-G, px)), L-sd/2-G];
-    case 'left':  return [sd/2+G,   Math.max(sw/2+G, Math.min(L-sw/2-G, pz))];
+    case 'left':  return [sd/2+G, Math.max(sw/2+G, Math.min(L-sw/2-G, pz))];
     case 'right': return [W-sd/2-G, Math.max(sw/2+G, Math.min(L-sw/2-G, pz))];
     default:      return [px, pz];
   }
@@ -390,7 +390,10 @@ function addContactShadow(scene: THREE.Scene, px: number, pz: number, sw: number
   const shadowD = rot === 90 || rot === 270 ? sw : sd;
 
   const geo = new THREE.PlaneGeometry(shadowW * 0.92, shadowD * 0.88);
-  const m = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false });
+  const m = new THREE.MeshBasicMaterial({
+    color: 0x000000, transparent: true, opacity: 0.22,
+    depthWrite: false, blending: THREE.MultiplyBlending,
+  });
   const shadow = new THREE.Mesh(geo, m);
   shadow.rotation.x = -Math.PI / 2;
   shadow.rotation.z = rotRad;
@@ -399,7 +402,10 @@ function addContactShadow(scene: THREE.Scene, px: number, pz: number, sw: number
   scene.add(shadow);
 
   const geoOuter = new THREE.PlaneGeometry(shadowW * 1.15, shadowD * 1.10);
-  const mOuter = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.07, depthWrite: false });
+  const mOuter = new THREE.MeshBasicMaterial({
+    color: 0x000000, transparent: true, opacity: 0.10,
+    depthWrite: false, blending: THREE.MultiplyBlending,
+  });
   const shadowOuter = new THREE.Mesh(geoOuter, mOuter);
   shadowOuter.rotation.x = -Math.PI / 2;
   shadowOuter.rotation.z = rotRad;
@@ -410,6 +416,7 @@ function addContactShadow(scene: THREE.Scene, px: number, pz: number, sw: number
 
 // ── MASTER PLACER ────────────────────────────────────────────────────────────
 function place(scene: THREE.Scene, item: any, roomW: number, roomL: number, roomH: number) {
+  console.log('place:', item.type, 'x:', item.x, 'z:', item.z, 'wall:', item.wall, 'rot:', item.rotation);
   const c  = hex(item.color, 0x8B7355);
   const iw = Math.max(0.2, Math.min(item.width  ?? 1.0, roomW * 0.95));
   const id = Math.max(0.1, Math.min(item.depth  ?? 0.6, roomL * 0.95));
@@ -422,6 +429,15 @@ function place(scene: THREE.Scene, item: any, roomW: number, roomL: number, room
 
   let px = typeof item.x === 'number' && !isNaN(item.x) ? item.x : roomW / 2;
   let pz = typeof item.z === 'number' && !isNaN(item.z) ? item.z : roomL / 2;
+  
+  // Нормализация типов от AI
+  const typeMap: Record<string, string> = {
+    coffee_table: 'table', armchair: 'chair', bookshelf: 'shelf',
+    floor_lamp: 'lamp', vase: 'plant', sofa_chair: 'chair',
+    side_table: 'nightstand', tv_stand: 'dresser', cabinet: 'wardrobe',
+    chest: 'dresser', bench: 'chair',
+  };
+  if (typeMap[item.type]) item = { ...item, type: typeMap[item.type] };
 
   // Клиппинг внутри комнаты
   px = Math.max(snapW / 2 + 0.02, Math.min(roomW - snapW / 2 - 0.02, px));
@@ -499,43 +515,6 @@ if (item.type === 'shelf') {
   // Обычная мебель
   g.position.set(px, 0, pz);
   scene.add(g);
-
-function addContactShadow(scene: THREE.Scene, px: number, pz: number, sw: number, sd: number, rot: number) {
-  const rotRad = (rot * Math.PI) / 180;
-  const shadowW = rot === 90 || rot === 270 ? sd : sw;
-  const shadowD = rot === 90 || rot === 270 ? sw : sd;
-
-  // Основная тень — тёмный эллипс
-  const geo = new THREE.PlaneGeometry(shadowW * 0.92, shadowD * 0.88, 1, 1);
-  const mat = new THREE.MeshBasicMaterial({
-    color: 0x000000,
-    transparent: true,
-    opacity: 0.18,
-    depthWrite: false,
-  });
-  const shadow = new THREE.Mesh(geo, mat);
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.rotation.z = rotRad;
-  shadow.position.set(px, 0.003, pz);
-  shadow.renderOrder = 1;
-  scene.add(shadow);
-
-  // Мягкий ореол вокруг — чуть больше и прозрачнее
-  const geoOuter = new THREE.PlaneGeometry(shadowW * 1.15, shadowD * 1.10, 1, 1);
-  const matOuter = new THREE.MeshBasicMaterial({
-    color: 0x000000,
-    transparent: true,
-    opacity: 0.07,
-    depthWrite: false,
-  });
-  const shadowOuter = new THREE.Mesh(geoOuter, matOuter);
-  shadowOuter.rotation.x = -Math.PI / 2;
-  shadowOuter.rotation.z = rotRad;
-  shadowOuter.position.set(px, 0.002, pz);
-  shadowOuter.renderOrder = 0;
-  scene.add(shadowOuter);
-}
-
   switch (item.type) {
     case 'bed':        addBed(g, iw, id, c);                          break;
     case 'sofa':       addSofa(g, iw, id, c);                         break;
