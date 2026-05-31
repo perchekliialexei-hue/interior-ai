@@ -77,11 +77,11 @@ function snapToWall(
 ): [number, number] {
   const G = 0.02;
   const wall = wallHint || (rot === 0 ? 'back' : rot === 90 ? 'right' : rot === 180 ? 'front' : rot === 270 ? 'left' : 'back');
-  // sw/sd уже учитывают поворот (snapW/snapD из place)
+  // sw = snapW (размер вдоль X), sd = snapD (размер вдоль Z) — уже с учётом поворота
   switch (wall) {
     case 'back':  return [Math.max(sw/2+G, Math.min(W-sw/2-G, px)), sd/2+G];
     case 'front': return [Math.max(sw/2+G, Math.min(W-sw/2-G, px)), L-sd/2-G];
-    case 'left':  return [sd/2+G, Math.max(sw/2+G, Math.min(L-sw/2-G, pz))];
+    case 'left':  return [sd/2+G,   Math.max(sw/2+G, Math.min(L-sw/2-G, pz))];
     case 'right': return [W-sd/2-G, Math.max(sw/2+G, Math.min(L-sw/2-G, pz))];
     default:      return [px, pz];
   }
@@ -429,7 +429,7 @@ function place(scene: THREE.Scene, item: any, roomW: number, roomL: number, room
 
   let px = typeof item.x === 'number' && !isNaN(item.x) ? item.x : roomW / 2;
   let pz = typeof item.z === 'number' && !isNaN(item.z) ? item.z : roomL / 2;
-  
+
   // Нормализация типов от AI
   const typeMap: Record<string, string> = {
     coffee_table: 'table', armchair: 'chair', bookshelf: 'shelf',
