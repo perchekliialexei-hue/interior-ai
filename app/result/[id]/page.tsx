@@ -12,6 +12,8 @@ export default function Result() {
   const [shareUrl, setShareUrl] = useState('');
   const [sharing, setSharing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenProgress, setRegenProgress] = useState(0);
   const router = useRouter();
   const params = useParams();
   const sharedId = params?.id as string | undefined;
@@ -76,7 +78,47 @@ export default function Result() {
       setTimeout(() => setCopied(false), 2500);
     });
   };
+const handleRegenerate = async () => {
+    if (!design || sharedId) return;
+    setRegenerating(true);
+    setRegenProgress(10);
 
+    try {
+      const res = await fetch('/api/render-pixtral', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomType: design.roomType || 'Спальня',
+          style:    design.style   || 'Минимализм',
+          width:    design.width   || '4',
+          length:   design.length  || '5',
+          height:   design.height  || '2.7',
+          wishes:   design.wishes  || '',
+          design,
+        }),
+      });
+
+      setRegenProgress(80);
+      const data = await res.json();
+
+      if (data.images?.length > 0) {
+        localStorage.setItem('roomRenders', JSON.stringify(data.images));
+        setRenders(data.images);
+        setSelected(0);
+      }
+      if (data.renderLayout && design) {
+        const updatedDesign = { ...design, furniture: data.renderLayout };
+        localStorage.setItem('roomDesign', JSON.stringify(updatedDesign));
+        setDesign(updatedDesign);
+      }
+      setRegenProgress(100);
+    } catch (e) {
+      console.error('Regen error:', e);
+    } finally {
+      setRegenerating(false);
+      setRegenProgress(0);
+    }
+  };
   const furniture = design?.furniture || [];
   const total = furniture.reduce((sum: number, item: any) => {
     const price = parseInt(String(item.jysk_price || item.price || '0').replace(/\D/g, ''));
@@ -97,32 +139,26 @@ export default function Result() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
       <nav className="flex justify-between items-center px-8 py-4 border-b border-white/10">
-        <a href="/" className="text-lg font-bold tracking-tight">
-          Interior<span className="text-violet-400">AI</span>
-        </a>
-        <div className="flex items-center gap-3">
-          {/* Кнопка Поделиться */}
-          <button
-            onClick={handleShare}
-            disabled={sharing}
-            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/50 transition px-4 py-2 rounded-full text-sm font-medium disabled:opacity-50"
-          >
-            {sharing ? (
-              <span className="animate-pulse">Сохраняем...</span>
-            ) : copied ? (
-              <><Check size={14} className="text-green-400" /> Скопировано!</>
-            ) : shareUrl ? (
-              <><Copy size={14} /> Копировать ссылку</>
-            ) : (
-              <><Share2 size={14} /> Поделиться</>
-            )}
-          </button>
-          <div className="text-right">
-            <div className="text-sm text-violet-400 font-medium">{design?.style || 'Дизайн'}</div>
-            <div className="text-xs text-gray-500">{design?.width || 4}м × {design?.length || 5}м × {design?.height || 2.7}м</div>
-          </div>
-        </div>
-      </nav>
+  <a href="/" className="text-lg font-bold tracking-tight">
+    Interior<span className="text-violet-400">AI</span>
+  </a>
+  <div className="flex items-center gap-3">
+    <button
+      onClick={handleShare}
+      disabled={sharing}
+      className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/50 transition px-4 py-2 rounded-full text-sm font-medium disabled:opacity-50"
+    >
+      {sharing ? <span className="animate-pulse">Сохраняем...</span>
+        : copied ? <><Check size={14} className="text-green-400" /> Скопировано!</>
+        : shareUrl ? <><Copy size={14} /> Копировать ссылку</>
+        : <><Share2 size={14} /> Поделиться</>}
+    </button>
+    <div className="text-right">
+      <div className="text-sm text-violet-400 font-medium">{design?.style || 'Дизайн'}</div>
+      <div className="text-xs text-gray-500">{design?.width || 4}м × {design?.length || 5}м × {design?.height || 2.7}м</div>
+    </div>
+  </div>
+</nav>
 
       {/* Показываем ссылку если создана */}
       {shareUrl && (
