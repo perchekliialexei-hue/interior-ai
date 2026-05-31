@@ -130,7 +130,7 @@ function resolveCollision(
 ): [number, number] {
   const myPriority = FURNITURE_PRIORITY[type] ?? 3;
 
-  for (let iter = 0; iter < 4; iter++) {
+  for (let iter = 0; iter < 8; iter++) {
     let moved = false;
     for (const b of placedBoxes) {
       if ((FURNITURE_PRIORITY[b.type] ?? 3) >= myPriority) continue;
@@ -501,9 +501,12 @@ function addContactShadow(scene: THREE.Scene, px: number, pz: number, sw: number
 // ── MASTER PLACER ────────────────────────────────────────────────────────────
 function place(scene: THREE.Scene, item: any, roomW: number, roomL: number, roomH: number) {
   const c  = hex(item.color, 0x8B7355);
-  const iw = Math.max(0.2, Math.min(item.width  ?? 1.0, roomW * 0.95));
-  const id = Math.max(0.1, Math.min(item.depth  ?? 0.6, roomL * 0.95));
-  const ih = Math.max(0.2, item.height ?? 0.8);
+// Максимальный размер предмета — не больше 45% комнаты по каждой оси
+const maxItemW = roomW * 0.45;
+const maxItemL = roomL * 0.45;
+const iw = Math.max(0.2, Math.min(item.width  ?? 1.0, maxItemW));
+const id = Math.max(0.1, Math.min(item.depth  ?? 0.6, maxItemL));
+const ih = Math.max(0.2, item.height ?? 0.8);
 
   const rotDeg = ((item.rotation ?? 0) % 360 + 360) % 360;
   const rot90  = rotDeg === 90 || rotDeg === 270;
