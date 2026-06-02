@@ -153,15 +153,8 @@ if (WALL_TYPES.has(b.type) && WALL_TYPES.has(type)) continue; // стенова�
   }
   return [px, pz];
 }
-function snapToWall(
-  px: number, pz: number,
-  sw: number, sd: number,
-  rot: number, W: number, L: number,
-  wallHint?: string
-): [number, number] {
-  const G = 0.02;
-  const wall = wallHint || (rot === 0 ? 'back' : rot === 90 ? 'right' : rot === 180 ? 'front' : rot === 270 ? 'left' : 'back');
-  // sw = snapW (размер вдоль X), sd = snapD (размер вдоль Z) — уже с учётом поворота
+function snapToWall(px: number, pz: number, sw: number, sd: number, W: number, L: number, wall: string): [number, number] {
+  const G = 0.015;
   switch (wall) {
     case 'back':  return [Math.max(sw/2+G, Math.min(W-sw/2-G, px)), sd/2+G];
     case 'front': return [Math.max(sw/2+G, Math.min(W-sw/2-G, px)), L-sd/2-G];
@@ -468,153 +461,184 @@ function buildWoodCeiling(scene: THREE.Scene, W: number, L: number, H: number, c
 }
 
 // ── CONTACT SHADOWS ──────────────────────────────────────────────────────────
-function addContactShadow(scene: THREE.Scene, px: number, pz: number, sw: number, sd: number, rot: number) {
-  const rotRad = (rot * Math.PI) / 180;
-  const shadowW = rot === 90 || rot === 270 ? sd : sw;
-  const shadowD = rot === 90 || rot === 270 ? sw : sd;
-
-  const geo = new THREE.PlaneGeometry(shadowW * 0.92, shadowD * 0.88);
+function addContactShadow(scene: THREE.Scene, px: number, pz: number, sw: number, sd: number) {
+  const geo = new THREE.PlaneGeometry(sw * 0.92, sd * 0.88);
   const m = new THREE.MeshBasicMaterial({
     color: 0x000000, transparent: true, opacity: 0.22,
     depthWrite: false, blending: THREE.MultiplyBlending,
   });
   const shadow = new THREE.Mesh(geo, m);
   shadow.rotation.x = -Math.PI / 2;
-  shadow.rotation.z = rotRad;
   shadow.position.set(px, 0.003, pz);
   shadow.renderOrder = 1;
   scene.add(shadow);
 
-  const geoOuter = new THREE.PlaneGeometry(shadowW * 1.15, shadowD * 1.10);
+  const geoOuter = new THREE.PlaneGeometry(sw * 1.15, sd * 1.10);
   const mOuter = new THREE.MeshBasicMaterial({
     color: 0x000000, transparent: true, opacity: 0.10,
     depthWrite: false, blending: THREE.MultiplyBlending,
   });
   const shadowOuter = new THREE.Mesh(geoOuter, mOuter);
   shadowOuter.rotation.x = -Math.PI / 2;
-  shadowOuter.rotation.z = rotRad;
   shadowOuter.position.set(px, 0.002, pz);
   shadowOuter.renderOrder = 0;
   scene.add(shadowOuter);
 }
 
-// ── MASTER PLACER ────────────────────────────────────────────────────────────
-function place(scene: THREE.Scene, item: any, roomW: number, roomL: number, roomH: number) {
-  const c  = hex(item.color, 0x8B7355);
-// Максимальный размер предмета — не больше 45% комнаты по каждой оси
-const maxItemW = roomW * 0.45;
-const maxItemL = roomL * 0.45;
-const iw = Math.max(0.2, Math.min(item.width  ?? 1.0, maxItemW));
-const id = Math.max(0.1, Math.min(item.depth  ?? 0.6, maxItemL));
-const ih = Math.max(0.2, item.height ?? 0.8);
+// ── Нормализация типов от AI ──────────────────────────────────────────────────
+const TYPE_MAP: Record<string, string> = {
+  coffee_table: 'table', armchair: 'chair', bookshelf: 'shelf',
+  floor_lamp: 'lamp', vase: 'plant', sofa_chair: 'chair',
+  side_table: 'nightstand', tv_stand: 'dresser', cabinet: 'wardrobe',
+  chest: 'dresser', bench: 'chair', couch: 'sofa', loveseat: 'sofa',
+  ottoman: 'table', stool: 'chair',
+};
 
-  const rotDeg = ((item.rotation ?? 0) % 360 + 360) % 360;
-  const rot90  = rotDeg === 90 || rotDeg === 270;
-  const snapW  = rot90 ? id : iw;
-  const snapD  = rot90 ? iw : id;
-
-  let px = typeof item.x === 'number' && !isNaN(item.x) ? item.x : roomW / 2;
-  let pz = typeof item.z === 'number' && !isNaN(item.z) ? item.z : roomL / 2;
-
-  // Нормализация типов от AI
-  const typeMap: Record<string, string> = {
-    coffee_table: 'table', armchair: 'chair', bookshelf: 'shelf',
-    floor_lamp: 'lamp', vase: 'plant', sofa_chair: 'chair',
-    side_table: 'nightstand', tv_stand: 'dresser', cabinet: 'wardrobe',
-    chest: 'dresser', bench: 'chair',
-  };
-  if (typeMap[item.type]) item = { ...item, type: typeMap[item.type] };
-
-  // Клиппинг внутри комнаты
-  px = Math.max(snapW / 2 + 0.02, Math.min(roomW - snapW / 2 - 0.02, px));
-  pz = Math.max(snapD / 2 + 0.02, Math.min(roomL - snapD / 2 - 0.02, pz));
-  // Collision detection — только для обычной мебели
-  if (!DECOR_TYPES.has(item.type)) {
-    [px, pz] = resolveCollision(px, pz, snapW, snapD, item.type, roomW, roomL);
-    placedBoxes.push({ x: px, z: pz, w: snapW, d: snapD, type: item.type });
-  }
-  // Дополнительный hard clamp для полок
-if (item.type === 'shelf') {
-  px = Math.max(0.3, Math.min(roomW - 0.3, px));
-  pz = Math.max(0.3, Math.min(roomL - 0.3, pz));
+// Определить стену по позиции
+function guessWall(px: number, pz: number, W: number, L: number): string {
+  const dists = { back: pz, front: L-pz, left: px, right: W-px };
+  return Object.entries(dists).sort((a,b) => a[1]-b[1])[0][0];
 }
-  // Пристегиваем к стене мебель и декор на стенах
-  if (WALL_TYPES.has(item.type)) {
-    [px, pz] = snapToWall(px, pz, snapW, snapD, rotDeg, roomW, roomL, item.wall);
-  }
 
-  const g = new THREE.Group();
-  g.rotation.y = (rotDeg * Math.PI) / 180;
+// Поворот мебели лицом к центру комнаты
+function wallToRotation(wall: string): number {
+  return wall==='back'?0 : wall==='front'?180 : wall==='left'?270 : 90;
+}
 
-  // ── Декор на стенах — позиционируем по-другому ────────────────────────────
-  if (item.type === 'curtains') {
-    // Шторы вешаем на стену z=0 (задняя), снизу от ceiling вниз
-    g.rotation.y = 0;
-    g.position.set(px, roomH - ih / 2 - 0.01, 0.06);
+// ── MASTER PLACER ─────────────────────────────────────────────────────────────
+function place(scene: THREE.Scene, item: any, W: number, L: number, H: number) {
+  const type = TYPE_MAP[item.type] ?? item.type ?? 'table';
+  const fi = { ...item, type };
+  const c  = hex(fi.color, 0x8B7355);
+
+  const iw = Math.max(0.25, Math.min(fi.width  ?? 1.0, W * 0.48));
+  const id = Math.max(0.15, Math.min(fi.depth  ?? 0.6, L * 0.48));
+  const ih = Math.max(0.30, fi.height ?? 0.8);
+
+  // ── Декор на стенах ──────────────────────────────────────────────────────
+  if (fi.type === 'curtains') {
+    const g = new THREE.Group();
+    const wall = fi.wall || 'back';
+    const px = typeof fi.x === 'number' ? fi.x : W/2;
+    const pz = typeof fi.z === 'number' ? fi.z : L/2;
+    if (wall === 'back' || wall === 'front') {
+      g.rotation.y = wall === 'front' ? Math.PI : 0;
+      g.position.set(Math.max(iw/2, Math.min(W-iw/2, px)), H-ih/2-0.01, wall==='back'?0.06:L-0.06);
+    } else {
+      g.rotation.y = wall === 'left' ? Math.PI/2 : -Math.PI/2;
+      g.position.set(wall==='left'?0.06:W-0.06, H-ih/2-0.01, Math.max(iw/2, Math.min(L-iw/2, pz)));
+    }
     scene.add(g);
     addCurtains(g, iw, ih, c);
     return;
   }
 
-  if (item.type === 'painting') {
-    // Картину вешаем на стену
-    const wallZ = item.wall === 'right' ? roomW - 0.04 :
-                  item.wall === 'left'  ? 0.04 :
-                  item.wall === 'front' ? roomL - 0.04 : 0.04;
-    const isZWall = !item.wall || item.wall === 'back' || item.wall === 'front';
-    g.rotation.y = item.wall === 'right' ? -Math.PI/2 : item.wall === 'left' ? Math.PI/2 : 0;
-    if (isZWall) {
-      g.position.set(px, roomH * 0.62, wallZ);
+  if (fi.type === 'painting') {
+    const g = new THREE.Group();
+    const wall = fi.wall || guessWall(fi.x ?? W/2, fi.z ?? 0.1, W, L);
+    const px = typeof fi.x === 'number' ? fi.x : W/2;
+    const pz = typeof fi.z === 'number' ? fi.z : L/2;
+    const hangY = H * 0.62;
+    if (wall === 'back') {
+      g.position.set(Math.max(iw/2+0.1, Math.min(W-iw/2-0.1, px)), hangY, 0.04);
+    } else if (wall === 'front') {
+      g.position.set(Math.max(iw/2+0.1, Math.min(W-iw/2-0.1, px)), hangY, L-0.04);
+      g.rotation.y = Math.PI;
+    } else if (wall === 'left') {
+      g.position.set(0.04, hangY, Math.max(iw/2+0.1, Math.min(L-iw/2-0.1, pz)));
+      g.rotation.y = Math.PI/2;
     } else {
-      g.position.set(wallZ, roomH * 0.62, pz);
+      g.position.set(W-0.04, hangY, Math.max(iw/2+0.1, Math.min(L-iw/2-0.1, pz)));
+      g.rotation.y = -Math.PI/2;
     }
     scene.add(g);
     addPainting(g, iw, ih, c);
     return;
   }
 
-  if (item.type === 'mirror') {
-    const wallX = item.wall === 'right' ? roomW - 0.04 : item.wall === 'left' ? 0.04 : roomW - 0.04;
-    g.rotation.y = item.wall === 'left' ? Math.PI/2 : -Math.PI/2;
-    g.position.set(wallX, 0, pz);
+  if (fi.type === 'mirror') {
+    const g = new THREE.Group();
+    const wall = fi.wall || 'right';
+    const pz = typeof fi.z === 'number' ? fi.z : L/2;
+    if (wall === 'left') {
+      g.position.set(0.04, 0, Math.max(0.4, Math.min(L-0.4, pz)));
+      g.rotation.y = Math.PI/2;
+    } else {
+      g.position.set(W-0.04, 0, Math.max(0.4, Math.min(L-0.4, pz)));
+      g.rotation.y = -Math.PI/2;
+    }
     scene.add(g);
     addMirror(g, iw, ih, c);
     return;
   }
 
-  if (item.type === 'blanket') {
-    // Плед — на кровати, чуть выше уровня матраса
-    g.position.set(px, 0.38, pz);
-    scene.add(g);
-    addBlanket(g, iw, id, c);
-    return;
+  if (fi.type === 'blanket') {
+    const g = new THREE.Group();
+    g.position.set(Math.max(iw/2, Math.min(W-iw/2, fi.x ?? W/2)), 0.38, Math.max(id/2, Math.min(L-id/2, fi.z ?? L/2)));
+    scene.add(g); addBlanket(g, iw, id, c); return;
+  }
+  if (fi.type === 'cushions') {
+    const g = new THREE.Group();
+    g.position.set(Math.max(0.3, Math.min(W-0.3, fi.x ?? W/2)), 0.38, Math.max(0.3, Math.min(L-0.3, fi.z ?? L/2)));
+    scene.add(g); addCushions(g, iw, c); return;
   }
 
-  if (item.type === 'cushions') {
-    // Подушки — на кровати или диване
-    g.position.set(px, 0.38, pz);
-    scene.add(g);
-    addCushions(g, iw, c);
-    return;
+  // ── Обычная мебель на полу ──────────────────────────────────────────────
+  const isWallType = WALL_TYPES.has(fi.type);
+  let wall = fi.wall as string | undefined;
+
+  let rotDeg: number;
+  if (isWallType) {
+    if (!wall || wall === 'none') wall = guessWall(fi.x ?? W/2, fi.z ?? L/2, W, L);
+    rotDeg = wallToRotation(wall);
+  } else {
+    rotDeg = ((fi.rotation ?? 0) % 360 + 360) % 360;
+    wall = undefined;
   }
 
-  // Обычная мебель
+  const rot90 = rotDeg === 90 || rotDeg === 270;
+  const snapW = rot90 ? id : iw;
+  const snapD = rot90 ? iw : id;
+
+  let px = typeof fi.x === 'number' && !isNaN(fi.x) ? fi.x : W/2;
+  let pz = typeof fi.z === 'number' && !isNaN(fi.z) ? fi.z : L/2;
+
+  // Клиппинг
+  px = Math.max(snapW/2+0.02, Math.min(W-snapW/2-0.02, px));
+  pz = Math.max(snapD/2+0.02, Math.min(L-snapD/2-0.02, pz));
+
+  // Snap to wall до коллизий
+  if (wall) [px, pz] = snapToWall(px, pz, snapW, snapD, W, L, wall);
+
+  // Collision detection
+  [px, pz] = resolveCollision(px, pz, snapW, snapD, fi.type, W, L);
+  placedBoxes.push({ x: px, z: pz, w: snapW, d: snapD, type: fi.type });
+
+  // Snap to wall после коллизий (финальный)
+  if (wall) [px, pz] = snapToWall(px, pz, snapW, snapD, W, L, wall);
+
+  // Тень
+  if (fi.type !== 'rug') addContactShadow(scene, px, pz, snapW, snapD);
+
+  const g = new THREE.Group();
+  g.rotation.y = (rotDeg * Math.PI) / 180;
   g.position.set(px, 0, pz);
   scene.add(g);
-  switch (item.type) {
-    case 'bed':        addBed(g, iw, id, c);                          break;
-    case 'sofa':       addSofa(g, iw, id, c);                         break;
-    case 'wardrobe':   addWardrobe(g, iw, id, Math.max(1.6, ih), c);  break;
-    case 'dresser':    addDresser(g, iw, id, Math.max(0.6, ih), c);   break;
-    case 'desk':       addDesk(g, iw, id, c);                         break;
-    case 'chair':      addChair(g, c);                                 break;
-    case 'table':      addTable(g, iw, id, c);                        break;
-    case 'shelf':      addShelf(g, iw, id, Math.max(1.4, ih), c);     break;
-    case 'lamp':       addLamp(g, c);                                  break;
-    case 'plant':      addPlant(g, c);                                 break;
-    case 'rug':        addRug(g, iw, id, c);                          break;
-    case 'nightstand': addNightstand(g, iw, id, Math.max(0.5, ih), c); break;
-    default:           add(g, box(iw, ih, id), mat(c), 0, ih / 2, 0);
+
+  switch (fi.type) {
+    case 'bed':        addBed(g, iw, id, c);                           break;
+    case 'sofa':       addSofa(g, iw, id, c);                          break;
+    case 'wardrobe':   addWardrobe(g, iw, id, Math.max(1.6, ih), c);   break;
+    case 'dresser':    addDresser(g, iw, id, Math.max(0.55, ih), c);   break;
+    case 'desk':       addDesk(g, iw, id, c);                          break;
+    case 'chair':      addChair(g, c);                                  break;
+    case 'table':      addTable(g, iw, id, c);                         break;
+    case 'shelf':      addShelf(g, iw, id, Math.max(1.4, ih), c);      break;
+    case 'lamp':       addLamp(g, c);                                   break;
+    case 'plant':      addPlant(g, c);                                  break;
+    case 'rug':        addRug(g, iw, id, c);                           break;
+    case 'nightstand': addNightstand(g, iw, id, Math.max(0.45, ih), c); break;
+    default:           add(g, box(iw, Math.max(0.3,ih), id), mat(c), 0, Math.max(0.3,ih)/2, 0);
   }
 }
 
@@ -794,15 +818,14 @@ function ViewerContent() {
       else if (pos.z > L - 0.3) frontWallObjects.push(obj); // передняя стена
     });
     } else {
-      // Демо-сцена
-      place(scene,{type:'bed',       x:W*0.5, z:L*0.20,width:1.6,depth:2.0,height:0.5, color:'#8B7355',rotation:180,wall:'back'},W,L,H);
-      place(scene,{type:'nightstand',x:W*0.22,z:L*0.14,width:0.5,depth:0.4,height:0.55,color:'#7A6345',rotation:180,wall:'back'},W,L,H);
-      place(scene,{type:'wardrobe',  x:W*0.12,z:L*0.55,width:1.0,depth:0.5,height:2.0, color:'#9A8365',rotation:270,wall:'left'},W,L,H);
-      place(scene,{type:'lamp',      x:W*0.82,z:L*0.72,width:0.3,depth:0.3,height:1.5, color:'#A09070',rotation:0},W,L,H);
-      place(scene,{type:'plant',     x:W*0.88,z:L*0.88,width:0.3,depth:0.3,height:0.55,color:'#4A7A5A',rotation:0},W,L,H);
-      place(scene,{type:'curtains',  x:W/2,   z:0,     width:1.8,depth:0.1,height:2.4, color:'#E8E0D5',rotation:0,wall:'back'},W,L,H);
-      place(scene,{type:'painting',  x:W*0.7, z:0,     width:0.8,depth:0.05,height:0.6,color:'#C4B89A',rotation:0,wall:'back'},W,L,H);
-      place(scene,{type:'rug',       x:W*0.5, z:L*0.55,width:1.6,depth:2.0,height:0.02,color:'#B8A882',rotation:0},W,L,H);
+      place(scene,{type:'bed',       x:W*0.5, z:L*0.18,width:1.6,depth:2.0,height:0.5, color:'#8B7355',wall:'back'},W,L,H);
+place(scene,{type:'nightstand',x:W*0.20,z:L*0.18,width:0.5,depth:0.4,height:0.55,color:'#7A6345',wall:'back'},W,L,H);
+place(scene,{type:'wardrobe',  x:W*0.12,z:L*0.55,width:1.0,depth:0.5,height:2.0, color:'#9A8365',wall:'left'},W,L,H);
+place(scene,{type:'lamp',      x:W*0.82,z:L*0.72,width:0.3,depth:0.3,height:1.5, color:'#A09070'},W,L,H);
+place(scene,{type:'plant',     x:W*0.88,z:L*0.88,width:0.3,depth:0.3,height:0.55,color:'#4A7A5A'},W,L,H);
+place(scene,{type:'curtains',  x:W/2,   z:0,     width:1.8,depth:0.1,height:2.4, color:'#E8E0D5',wall:'back'},W,L,H);
+place(scene,{type:'painting',  x:W*0.7, z:0,     width:0.8,depth:0.05,height:0.6,color:'#C4B89A',wall:'back'},W,L,H);
+place(scene,{type:'rug',       x:W*0.5, z:L*0.55,width:1.6,depth:2.0,height:0.02,color:'#B8A882'},W,L,H);
     }
 
     // ── Loop ──
