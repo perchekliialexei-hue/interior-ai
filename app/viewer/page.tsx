@@ -626,14 +626,14 @@ function place(scene: THREE.Scene, item: any, W: number, L: number, H: number) {
   scene.add(g);
 
   switch (fi.type) {
-    case 'bed':        addBed(g, iw, id, c);                           break;
-    case 'sofa':       addSofa(g, iw, id, c);                          break;
-    case 'wardrobe':   addWardrobe(g, iw, id, Math.max(1.6, ih), c);   break;
-    case 'dresser':    addDresser(g, iw, id, Math.max(0.55, ih), c);   break;
-    case 'desk':       addDesk(g, iw, id, c);                          break;
+    case 'bed':      addBed(g, rot90 ? id : iw, rot90 ? iw : id, c);  break;
+    case 'sofa':     addSofa(g, rot90 ? id : iw, rot90 ? iw : id, c); break;
+    case 'wardrobe': addWardrobe(g, rot90 ? id : iw, rot90 ? iw : id, Math.max(1.6, ih), c); break;
+    case 'dresser':  addDresser(g, rot90 ? id : iw, rot90 ? iw : id, Math.max(0.55, ih), c); break
+    case 'desk':     addDesk(g, rot90 ? id : iw, rot90 ? iw : id, c); break;
     case 'chair':      addChair(g, c);                                  break;
     case 'table':      addTable(g, iw, id, c);                         break;
-    case 'shelf':      addShelf(g, iw, id, Math.max(1.4, ih), c);      break;
+    case 'shelf':    addShelf(g, rot90 ? id : iw, rot90 ? iw : id, Math.max(1.4, ih), c);    break;
     case 'lamp':       addLamp(g, c);                                   break;
     case 'plant':      addPlant(g, c);                                  break;
     case 'rug':        addRug(g, iw, id, c);                           break;
