@@ -301,17 +301,17 @@ function addSofa(g: THREE.Group, w: number, d: number, c: number) {
 
 // ── ШКАФ ─────────────────────────────────────────────────────────────────────
 function addWardrobe(g: THREE.Group, w: number, d: number, h: number, c: number) {
-  const wood  = mat(c, 0.65);
+  const wood  = woodMat(c, 0.65);
   const panel = mat(Math.min(0xFFFFFF,c+0x0C0C0C), 0.45);
   const metal = mat(0xCCCCCC, 0.2, 0.8);
   add(g, box(w,h,d), wood, 0, h/2, 0);
   add(g, box(w,0.06,d+0.01), mat(Math.max(0,c-0x151515),0.8), 0, 0.03, 0);
   const dw = w/2-0.01;
   [-dw/2-0.005, dw/2+0.005].forEach(ox => {
-    add(g, box(dw-0.02,h-0.04,0.02), panel, ox, h/2, d/2+0.01);
+    add(g, box(dw-0.02,h-0.04,0.022), panel, ox, h/2, d/2+0.011);
     const hnd = new THREE.Mesh(cyl(0.008,0.008,0.13,8), metal);
     hnd.rotation.z = Math.PI/2;
-    hnd.position.set(ox+(ox>0?-0.14:0.14), h*0.52, d/2+0.026);
+    hnd.position.set(ox+(ox>0?-0.14:0.14), h*0.52, d/2+0.028);
     g.add(hnd);
   });
 }
@@ -336,15 +336,13 @@ function addDresser(g: THREE.Group, w: number, d: number, h: number, c: number) 
 
 // ── СТОЛ ПИСЬМЕННЫЙ ──────────────────────────────────────────────────────────
 function addDesk(g: THREE.Group, w: number, d: number, c: number) {
-  const wood = mat(c, 0.65);
-  const dark = mat(Math.max(0,c-0x181818), 0.55);
+  const wood = woodMat(c, 0.65);
   const leg  = mat(Math.max(0,c-0x0A0A0A), 0.50, 0.12);
-  add(g, box(w,0.04,d), wood, 0, 0.40, 0);
+  add(g, box(w, 0.04, d), wood, 0, 0.74, 0);
   [[-w/2+0.04,-d/2+0.04],[w/2-0.04,-d/2+0.04],
    [-w/2+0.04, d/2-0.04],[w/2-0.04, d/2-0.04]].forEach(([lx,lz]) => {
-    add(g, box(0.04,0.71,0.04), leg, lx, 0.355, lz);
+    add(g, box(0.04, 0.72, 0.04), leg, lx, 0.36, lz);
   });
-  add(g, box(w*0.42,0.18,d*0.50), dark, w*0.22, -0.13, 0);
 }
 
 // ── СТУЛ ─────────────────────────────────────────────────────────────────────
@@ -626,18 +624,18 @@ function place(scene: THREE.Scene, item: any, W: number, L: number, H: number) {
   scene.add(g);
 
   switch (fi.type) {
-    case 'bed':      addBed(g, rot90 ? id : iw, rot90 ? iw : id, c);  break;
-    case 'sofa':     addSofa(g, rot90 ? id : iw, rot90 ? iw : id, c); break;
-    case 'wardrobe': addWardrobe(g, rot90 ? id : iw, rot90 ? iw : id, Math.max(1.6, ih), c); break;
-    case 'dresser':  addDresser(g, rot90 ? id : iw, rot90 ? iw : id, Math.max(0.55, ih), c); break
-    case 'desk':     addDesk(g, rot90 ? id : iw, rot90 ? iw : id, c); break;
-    case 'chair':      addChair(g, c);                                  break;
-    case 'table':      addTable(g, iw, id, c);                         break;
-    case 'shelf':    addShelf(g, rot90 ? id : iw, rot90 ? iw : id, Math.max(1.4, ih), c);    break;
-    case 'lamp':       addLamp(g, c);                                   break;
-    case 'plant':      addPlant(g, c);                                  break;
-    case 'rug':        addRug(g, iw, id, c);                           break;
-    case 'nightstand': addNightstand(g, iw, id, Math.max(0.45, ih), c); break;
+    case 'bed':        addBed(g, rot90 ? id : iw, rot90 ? iw : id, c);                           break;
+    case 'sofa':       addSofa(g, rot90 ? id : iw, rot90 ? iw : id, c);                          break;
+    case 'wardrobe':   addWardrobe(g, rot90 ? id : iw, rot90 ? iw : id, Math.max(1.6, ih), c);   break;
+    case 'dresser':    addDresser(g, rot90 ? id : iw, rot90 ? iw : id, Math.max(0.55, ih), c);   break;
+    case 'desk':       addDesk(g, rot90 ? id : iw, rot90 ? iw : id, c);                          break;
+    case 'chair':      addChair(g, c);                                                             break;
+    case 'table':      addTable(g, rot90 ? id : iw, rot90 ? iw : id, c);                         break;
+    case 'shelf':      addShelf(g, rot90 ? id : iw, rot90 ? iw : id, Math.max(1.4, ih), c);      break;
+    case 'lamp':       addLamp(g, c);                                                              break;
+    case 'plant':      addPlant(g, c);                                                             break;
+    case 'rug':        addRug(g, rot90 ? id : iw, rot90 ? iw : id, c);                           break;
+    case 'nightstand': addNightstand(g, rot90 ? id : iw, rot90 ? iw : id, Math.max(0.45, ih), c); break;
     default:           add(g, box(iw, Math.max(0.3,ih), id), mat(c), 0, Math.max(0.3,ih)/2, 0);
   }
 }
