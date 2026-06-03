@@ -1,5 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+type NumericInput = string | number | null | undefined;
+
+interface FurnitureItem {
+  type: string;
+  x?: NumericInput;
+  z?: NumericInput;
+  width?: NumericInput;
+  depth?: NumericInput;
+  height?: NumericInput;
+  color?: string;
+  image?: string;
+  name?: string;
+  jysk_name?: string;
+  jysk_price?: string;
+  rotation?: number;
+  wall?: string;
+  shape?: string;
+}
+
+interface RenderDesign {
+  furniture?: FurnitureItem[];
+  colors?: {
+    walls?: string;
+    floor?: string;
+    accent?: string;
+  };
+}
+
+interface RenderPixtralRequest {
+  roomType?: string;
+  style?: string;
+  width?: NumericInput;
+  length?: NumericInput;
+  height?: NumericInput;
+  wishes?: string;
+  design?: RenderDesign;
+}
+
+type PixtralContent =
+  | { type: 'image_url'; image_url: string }
+  | { type: 'text'; text: string };
+
+interface MistralChatResponse {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+}
+
+interface ParsedLayoutItem {
+  type: string;
+  x?: number;
+  z?: number;
+  rotation?: number;
+  wall?: string;
+  shape?: string;
+}
+
+function toNumber(value: NumericInput, fallback: number): number {
+  const parsed = typeof value === 'number' ? value : parseFloat(value ?? '');
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function typeToEN(type: string): string {
   const map: Record<string, string> = {
     bed: 'bed', sofa: 'sofa', wardrobe: 'wardrobe', desk: 'writing desk',
@@ -10,9 +74,9 @@ function typeToEN(type: string): string {
   return map[type] || type;
 }
 
-function positionToEN(item: any, width: number, length: number): string {
-  const x = parseFloat(item.x) || width / 2;
-  const z = parseFloat(item.z) || length / 2;
+function positionToEN(item: FurnitureItem, width: number, length: number): string {
+  const x = toNumber(item.x, width / 2);
+  const z = toNumber(item.z, length / 2);
   const relX = x / width;
   const relZ = z / length;
   const h = relZ < 0.35 ? 'back' : relZ > 0.65 ? 'front' : 'center';
@@ -23,7 +87,7 @@ function positionToEN(item: any, width: number, length: number): string {
   return `in the ${h}-${v} corner`;
 }
 
-function colorToEN(hex: string): string {
+function colorToEN(hex?: string): string {
   if (!hex) return 'natural';
   const h = hex.replace('#', '').toLowerCase();
   const r = parseInt(h.slice(0, 2), 16);
@@ -57,14 +121,14 @@ function cleanProductName(name: string | undefined, type: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await req.json() as RenderPixtralRequest;
     const { roomType, style, width, length, height, wishes, design } = body;
 
-    const W = parseFloat(width) || 4;
-    const L = parseFloat(length) || 5;
-    const H = parseFloat(height) || 2.7;
+    const W = toNumber(width, 4);
+    const L = toNumber(length, 5);
+    const H = toNumber(height, 2.7);
 
-    const furniture = design?.furniture || [];
+    const furniture = Array.isArray(design?.furniture) ? design.furniture : [];
     const wallColor   = design?.colors?.walls  || '#F4F0EA';
     const floorColor  = design?.colors?.floor  || '#C8B89A';
     const accentColor = design?.colors?.accent || '#8B7355';
@@ -72,8 +136,8 @@ export async function POST(req: NextRequest) {
     console.log('render-pixtral start, furniture:', furniture.length);
 
     const furnitureLines = furniture
-      .filter((f: any) => !['curtains', 'painting', 'blanket', 'cushions', 'mirror'].includes(f.type))
-      .map((f: any) => {
+      .filter((f) => !['curtains', 'painting', 'blanket', 'cushions', 'mirror'].includes(f.type))
+      .map((f) => {
         const jyskName  = f.jysk_name || f.name || '';
         const colorDesc = colorToEN(f.color);
         const hex       = f.color ? ` (exact hex ${f.color})` : '';
@@ -85,14 +149,15 @@ export async function POST(req: NextRequest) {
       }).join('\n');
 
     const furnitureWithImages = furniture
-      .filter((f: any) => f.image && ['bed', 'sofa', 'wardrobe', 'desk', 'chair'].includes(f.type))
+      .filter((f) => f.image && ['bed', 'sofa', 'wardrobe', 'desk', 'chair'].includes(f.type))
       .slice(0, 5);
 
     let pixtralContext = '';
     if (furnitureWithImages.length > 0) {
-      const imageContents: any[] = [];
+      const imageContents: PixtralContent[] = [];
       for (const item of furnitureWithImages) {
         try {
+          if (!item.image) continue;
           const res = await fetch(item.image);
           if (res.ok) {
             const buffer = await res.arrayBuffer();
@@ -112,12 +177,12 @@ export async function POST(req: NextRequest) {
               model: 'pixtral-12b-2409',
               messages: [{ role: 'user', content: [
                 ...imageContents,
-                { type: 'text', text: `For each furniture piece shown, describe in ONE sentence its EXACT color (must match: ${furnitureWithImages.map((f: any) => `${f.jysk_name}=${f.color}`).join(', ')}), material finish, and key visual details. Example: "warm beige fabric sofa with light oak legs matching hex #D4B896".` },
+                { type: 'text', text: `For each furniture piece shown, describe in ONE sentence its EXACT color (must match: ${furnitureWithImages.map((f) => `${f.jysk_name}=${f.color}`).join(', ')}), material finish, and key visual details. Example: "warm beige fabric sofa with light oak legs matching hex #D4B896".` },
               ]}],
               max_tokens: 250, temperature: 0.1,
             }),
           });
-          const pixtralData = await pixtralRes.json();
+          const pixtralData = await pixtralRes.json() as MistralChatResponse;
           pixtralContext = pixtralData.choices?.[0]?.message?.content || '';
         } catch (e) { console.error('Pixtral context error:', e); }
       }
@@ -187,8 +252,8 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    const styleData = styleMap[style] || {
-      mood: `${style} interior design`,
+    const styleData = styleMap[style ?? ''] || {
+      mood: `${style || 'modern'} interior design`,
       materials: 'high-quality furniture and premium finishes',
       atmosphere: 'elegant and comfortable',
     };
@@ -291,21 +356,29 @@ Ultra-photorealistic, 8K, ray-traced global illumination, physically accurate ma
         try {
           const imgRes = await fetch(url, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
-            signal: AbortSignal.timeout(90000),
+            signal: AbortSignal.timeout(120000),
           });
           if (imgRes.ok) {
             const buffer = await imgRes.arrayBuffer();
+            if (buffer.byteLength < 10000) {
+              console.error('❌ Image too small:', buffer.byteLength, 'bytes — Pollinations returned empty');
+              continue;
+            }
             const base64 = Buffer.from(buffer).toString('base64');
             const mime = imgRes.headers.get('content-type') || 'image/jpeg';
             images.push(`data:${mime};base64,${base64}`);
-            console.log('Image generated:', Math.round(buffer.byteLength / 1024), 'KB');
+            console.log('✅ Image generated:', Math.round(buffer.byteLength / 1024), 'KB');
             generated = true;
+          } else {
+            console.error('❌ Pollinations failed:', imgRes.status, imgRes.statusText);
           }
-        } catch (e) { console.error('Fetch error:', e); }
+        } catch (e) {
+          console.error('Pollinations request error:', e);
+        }
       }
     }
 
-    let renderLayout: any[] = [];
+    let renderLayout: FurnitureItem[] = [];
     if (images.length > 0) {
       try {
         const firstImageBase64 = images[0].split(',')[1];
@@ -325,22 +398,24 @@ Rules: type=bed|sofa|wardrobe|dresser|desk|chair|table|shelf|lamp|plant|rug|nigh
             max_tokens: 800, temperature: 0.1,
           }),
         });
-        const layoutData = await layoutRes.json();
+        const layoutData = await layoutRes.json() as MistralChatResponse;
         const layoutText = layoutData.choices?.[0]?.message?.content || '';
         const arrMatch = layoutText.match(/\[[\s\S]*\]/);
         if (arrMatch) {
-          const parsed: any[] = JSON.parse(arrMatch[0]);
+          const parsed = JSON.parse(arrMatch[0]) as ParsedLayoutItem[];
           const usedTypes = new Set<string>();
-          renderLayout = furniture.map((original: any) => {
+          renderLayout = furniture.map((original) => {
             const layoutItem = parsed.find(
-              (p: any) => p.type === original.type && !usedTypes.has(p.type + '_' + parsed.indexOf(p))
+              (p) => p.type === original.type && !usedTypes.has(p.type + '_' + parsed.indexOf(p))
             );
             if (layoutItem) {
               usedTypes.add(layoutItem.type + '_' + parsed.indexOf(layoutItem));
+              const x = typeof layoutItem.x === 'number' ? layoutItem.x : toNumber(original.x, W / 2);
+              const z = typeof layoutItem.z === 'number' ? layoutItem.z : toNumber(original.z, L / 2);
               return {
                 ...original,
-                x: Math.max(0.3, Math.min(W - 0.3, layoutItem.x ?? original.x)),
-                z: Math.max(0.3, Math.min(L - 0.3, layoutItem.z ?? original.z)),
+                x: Math.max(0.3, Math.min(W - 0.3, x)),
+                z: Math.max(0.3, Math.min(L - 0.3, z)),
                 rotation: layoutItem.rotation ?? original.rotation ?? 0,
                 wall: layoutItem.wall ?? original.wall,
                 shape: layoutItem.shape,
