@@ -140,12 +140,12 @@ export async function POST(req: NextRequest) {
       .map((f) => {
         const jyskName  = f.jysk_name || f.name || '';
         const colorDesc = colorToEN(f.color);
-        const hex       = f.color ? ` (exact hex ${f.color})` : '';
+        const hexCode   = f.color ? ` (exact hex ${f.color})` : '';
         const position  = positionToEN(f, W, L);
         const exactSize = f.width && f.depth && f.height
           ? `exactly ${f.width}m wide x ${f.depth}m deep x ${f.height}m tall` : '';
         const price = f.jysk_price ? `, ${f.jysk_price}` : '';
-        return `- ${typeToEN(f.type)} "${jyskName}"${price}: color ${colorDesc}${hex}, ${exactSize}, ${position}`;
+        return `- ${typeToEN(f.type)} "${jyskName}"${price}: color ${colorDesc}${hexCode}, ${exactSize}, ${position}`;
       }).join('\n');
 
     const furnitureWithImages = furniture
@@ -188,7 +188,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── 11 стилей ─────────────────────────────────────────────────────────────
     const styleMap: Record<string, { mood: string; materials: string; atmosphere: string }> = {
       'Минимализм': {
         mood: 'minimalist interior design, clean lines, neutral palette, intentional empty space',
@@ -281,103 +280,118 @@ export async function POST(req: NextRequest) {
       .replace('кухня-гостиная', 'open-plan kitchen living room')
       .replace('студия', 'studio apartment').replace('кабинет', 'home office');
 
-    // ── Сценарии освещения ────────────────────────────────────────────────────
     const lightingScenarios = [
       {
-        name: 'morning',
-        light: 'soft early morning light streaming from left window at low angle, long gentle shadows across floor, cool-to-warm gradient, mist-like atmosphere, 5500K natural daylight',
+        light: 'soft early morning light streaming from left window, long gentle shadows, 5500K natural daylight',
         camera: 'wide establishing shot from corner near doorway, showing complete room, slight upward angle',
       },
       {
-        name: 'golden_hour',
-        light: 'warm golden-hour sunlight at 15-degree angle through window, deep amber pools on floor, long dramatic shadows, warm 3200K glow, dust particles visible in light beams',
-        camera: 'dynamic 3/4 perspective from 1.5m height, diagonal composition showing depth between furniture',
+        light: 'warm golden-hour sunlight through window, deep amber pools on floor, warm 3200K glow',
+        camera: 'dynamic 3/4 perspective from 1.5m height, diagonal composition showing depth',
       },
       {
-        name: 'overcast',
-        light: 'soft overcast Nordic daylight, perfectly diffused shadowless light from large window, even cool-white illumination 6000K, no harsh shadows, milky sky visible outside',
-        camera: 'wide establishing shot from corner near doorway, showing complete room, slight upward angle',
+        light: 'soft overcast Nordic daylight, perfectly diffused light from large window, 6000K',
+        camera: 'wide establishing shot from corner near doorway, showing complete room',
       },
       {
-        name: 'evening',
-        light: 'warm evening interior lighting, floor lamp and table lamp creating amber pools 2700K, dark blue twilight visible through window, cozy contrast between warm interior and cool exterior',
-        camera: 'dynamic 3/4 perspective from 1.5m height, diagonal composition showing depth between furniture',
+        light: 'warm evening interior lighting, floor lamp creating amber pools 2700K, twilight through window',
+        camera: 'dynamic 3/4 perspective from 1.5m height, diagonal composition',
       },
     ];
 
     const shuffled = [...lightingScenarios].sort(() => Math.random() - 0.5);
     const [scenario1, scenario2] = shuffled;
 
-    const basePrompt = `Professional architectural interior photography, ${styleData.mood}.
-${roomTypeEN}, exactly ${W}m wide by ${L}m deep, ${H}m ceiling height. Render room with architecturally accurate proportions.
-${wallDesc}, ${floorDesc}, accent color ${accentColorDesc}, clean baseboards.
-Atmosphere: ${styleData.atmosphere}.
-Material palette: ${styleData.materials}.
+    // Cloudflare FLUX лимит — 2048 символов. Сокращаем мебель до 5 главных предметов
+    const topFurniture = furniture
+      .filter((f) => !['curtains', 'painting', 'blanket', 'cushions', 'mirror', 'rug', 'plant', 'lamp'].includes(f.type))
+      .slice(0, 5);
 
-IMPORTANT: Render ONLY these exact JYSK products with their real colors and proportions:
-${furnitureLines}
+    const shortFurnitureLines = topFurniture
+      .map((f) => `${colorToEN(f.color)} ${typeToEN(f.type)}`)
+      .join(', ');
 
-Each piece must look exactly like the real JYSK product listed above.
-CRITICAL COLOR ACCURACY: Render every piece in its EXACT color specified by hex code. Do NOT substitute colors — if hex is #D4B896 render warm sand beige, if #2A2A2A render near-black, if #8B6914 render warm oak brown.
-${pixtralContext ? `Product visual details from real photos: ${pixtralContext.substring(0, 400)}` : ''}
-${wishes ? `Client requirements: ${wishes}` : ''}
-
-All furniture at their exact real-world dimensions. A 1.6m wide bed must look 1.6m wide relative to the ${W}m room.
-Shot on Phase One IQ4 150MP, 24mm tilt-shift lens, f/8, ISO 100.
-Ultra-photorealistic, 8K, ray-traced global illumination, physically accurate materials, professional color grading, magazine editorial quality, no people, no text.`;
+    const basePrompt = `${styleData.mood}, ${roomTypeEN}, ${W}x${L}m room. ${wallDesc}, ${floorDesc}. Furniture: ${shortFurnitureLines}. ${styleData.atmosphere}. ${wishes ? wishes.substring(0, 100) : ''} Ultra-photorealistic interior photo, 8K, no people, no text.`;
 
     const variants = [
-      `${basePrompt} Lighting: ${scenario1.light}. Camera: ${scenario1.camera}.`,
-      `${basePrompt} Lighting: ${scenario2.light}. Camera: ${scenario2.camera}.`,
+      `${basePrompt} ${scenario1.light}. ${scenario1.camera}.`.substring(0, 2000),
+      `${basePrompt} ${scenario2.light}. ${scenario2.camera}.`.substring(0, 2000),
     ];
+
+    console.log('Prompt 1 length:', variants[0].length);
+    console.log('Prompt 2 length:', variants[1].length);
+
+    // ── Генерация через Cloudflare Workers AI (FLUX.1-schnell) ───────────────
+    const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID;
+    const CF_API_TOKEN  = process.env.CF_API_TOKEN;
+    const CF_URL = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell`;
 
     const images: string[] = [];
 
     for (const promptVariant of variants) {
-      const negativePrompt = [
-        'cartoon', 'illustration', 'painting', 'sketch', 'anime', 'CGI look',
-        'plastic', 'blurry', 'oversaturated', 'distorted', 'fish-eye',
-        'people', 'humans', 'text', 'watermark', 'logo',
-        'low quality', 'dark', 'overexposed', 'noise', 'bad proportions',
-        'concrete cave', 'brutalist', 'unfinished', 'abandoned', 'dirty walls',
-      ].join(', ');
-      const seed = Math.floor(Math.random() * 9999999);
-      const encodedPrompt = encodeURIComponent(promptVariant);
-      const encodedNeg    = encodeURIComponent(negativePrompt);
+      try {
+        console.log('Trying Cloudflare FLUX.1-schnell, prompt length:', promptVariant.length);
 
-      const urls = [
-        `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1344&height=896&nologo=true&enhance=true&seed=${seed}&model=flux-pro&negative=${encodedNeg}`,
-        `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1344&height=896&nologo=true&enhance=true&seed=${seed}&model=flux&negative=${encodedNeg}`,
-      ];
+        const cfRes = await fetch(CF_URL, {
+          method: 'POST',
+          cache: 'no-store',
+          headers: {
+            'Authorization': `Bearer ${CF_API_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            prompt: promptVariant,
+            num_steps: 8,
+            negative_prompt: 'orange stains, color bleeding, artifacts, glitch, distortion, overexposed floor, paint spills, abstract floor patterns, cartoon, blurry, people, text, watermark',
+          }),
+          signal: AbortSignal.timeout(120000),
+        });
 
-      let generated = false;
-      for (const url of urls) {
-        if (generated) break;
-        try {
-          const imgRes = await fetch(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-            signal: AbortSignal.timeout(120000),
-          });
-          if (imgRes.ok) {
-            const buffer = await imgRes.arrayBuffer();
-            if (buffer.byteLength < 10000) {
-              console.error('❌ Image too small:', buffer.byteLength, 'bytes — Pollinations returned empty');
-              continue;
-            }
-            const base64 = Buffer.from(buffer).toString('base64');
-            const mime = imgRes.headers.get('content-type') || 'image/jpeg';
-            images.push(`data:${mime};base64,${base64}`);
-            console.log('✅ Image generated:', Math.round(buffer.byteLength / 1024), 'KB');
-            generated = true;
-          } else {
-            console.error('❌ Pollinations failed:', imgRes.status, imgRes.statusText);
-          }
-        } catch (e) {
-          console.error('Pollinations request error:', e);
+        console.log('CF status:', cfRes.status, 'Content-Type:', cfRes.headers.get('content-type'));
+
+        if (!cfRes.ok) {
+          const errText = await cfRes.text().catch(() => 'unreadable');
+          console.error('❌ CF failed:', cfRes.status, errText.substring(0, 300));
+          continue;
         }
+
+        const contentType = cfRes.headers.get('content-type') || '';
+
+        if (contentType.startsWith('image/')) {
+          // Прямой бинарный ответ
+          const buffer = await cfRes.arrayBuffer();
+          console.log('CF buffer size:', buffer.byteLength, 'bytes');
+          if (buffer.byteLength > 10000) {
+            const base64 = Buffer.from(buffer).toString('base64');
+            images.push(`data:${contentType.split(';')[0]};base64,${base64}`);
+            console.log('✅ CF image generated:', Math.round(buffer.byteLength / 1024), 'KB');
+          } else {
+            console.error('❌ CF image too small:', buffer.byteLength);
+          }
+        } else {
+          // JSON ответ с base64 внутри
+          const json = await cfRes.json() as {
+            result?: { image?: string };
+            success?: boolean;
+            errors?: unknown[];
+          };
+          console.log('CF json keys:', Object.keys(json));
+
+          if (json.result?.image) {
+            // Cloudflare возвращает base64 строку
+            const base64 = json.result.image;
+            images.push(`data:image/jpeg;base64,${base64}`);
+            console.log('✅ CF json image, base64 length:', base64.length);
+          } else {
+            console.error('❌ CF unexpected json:', JSON.stringify(json).substring(0, 300));
+          }
+        }
+      } catch (e) {
+        console.error('❌ CF fetch error:', e instanceof Error ? e.message : String(e));
       }
     }
 
+    // ── Pixtral анализирует рендер → обновляет 3D layout ────────────────────
     let renderLayout: FurnitureItem[] = [];
     if (images.length > 0) {
       try {
