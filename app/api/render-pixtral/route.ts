@@ -119,6 +119,14 @@ function cleanProductName(name: string | undefined, type: string): string {
     .replace(/\bsofa\b/gi, 'sofa').replace(/\bcanapea\b/gi, 'sofa');
 }
 
+const TYPE_MAP: Record<string, string> = {
+  coffee_table: 'table', armchair: 'chair', bookshelf: 'shelf',
+  floor_lamp: 'lamp', vase: 'plant', sofa_chair: 'chair',
+  side_table: 'nightstand', tv_stand: 'dresser', cabinet: 'wardrobe',
+  chest: 'dresser', bench: 'chair', couch: 'sofa', loveseat: 'sofa',
+  ottoman: 'table', stool: 'chair',
+};
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as RenderPixtralRequest;
@@ -321,7 +329,7 @@ export async function POST(req: NextRequest) {
     console.log('Prompt 1 length:', variants[0].length);
     console.log('Prompt 2 length:', variants[1].length);
 
-    // ── Генерация через Cloudflare Workers AI (FLUX.1-schnell) ───────────────
+    // ── Генерация через Cloudflare Workers AI (FLUX.1-schnell) ───────────────  
 const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID;
 const CF_API_TOKEN  = process.env.CF_API_TOKEN;
 const CF_URL = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell`;
@@ -389,10 +397,22 @@ for (const promptVariant of variants) {
             model: 'pixtral-12b-2409',
             messages: [{ role: 'user', content: [
               { type: 'image_url', image_url: `data:${firstImageMime};base64,${firstImageBase64}` },
-              { type: 'text', text: `Analyze this interior render. Room is ${W}m wide (x: 0=left, ${W}=right) and ${L}m deep (z: 0=back, ${L}=front).
-Return ONLY valid JSON array:
-[{"type":"sofa","x":2.0,"z":1.2,"rotation":0,"wall":"back","shape":"straight"}]
-Rules: type=bed|sofa|wardrobe|dresser|desk|chair|table|shelf|lamp|plant|rug|nightstand, rotation=0(front)|90(right)|180(back)|270(left), max 12 items` },
+              { type: 'text', text: `You are a precise interior layout analyzer. Room: ${W}m wide (X axis: 0=left wall, ${W}=right wall), ${L}m deep (Z axis: 0=back wall, ${L}=front/camera wall).
+
+Analyze the render and return EXACT positions of each furniture piece as JSON array.
+Known furniture to locate: ${furniture.filter(f => !['curtains','painting','blanket','cushions','mirror'].includes(f.type)).map(f => f.type).join(', ')}.
+
+Rules:
+- x: distance from LEFT wall to center of item (0 to ${W})
+- z: distance from BACK wall to center of item (0 to ${L})
+- wall: which wall the item faces AWAY from: back|front|left|right|none
+- rotation: 0=faces front(camera), 90=faces right, 180=faces back, 270=faces left
+- For beds/wardrobes/sofas against back wall: z≈${(L*0.15).toFixed(1)}, wall="back", rotation=0
+- For items against left wall: x≈${(W*0.08).toFixed(1)}, wall="left", rotation=90
+- For items against right wall: x≈${(W*0.92).toFixed(1)}, wall="right", rotation=270
+
+Return ONLY valid JSON, no explanation:
+[{"type":"bed","x":${(W/2).toFixed(1)},"z":${(L*0.15).toFixed(1)},"wall":"back","rotation":0}]` },
             ]}],
             max_tokens: 800, temperature: 0.1,
           }),
@@ -404,24 +424,33 @@ Rules: type=bed|sofa|wardrobe|dresser|desk|chair|table|shelf|lamp|plant|rug|nigh
           const parsed = JSON.parse(arrMatch[0]) as ParsedLayoutItem[];
           const usedTypes = new Set<string>();
           renderLayout = furniture.map((original) => {
-            const layoutItem = parsed.find(
-              (p) => p.type === original.type && !usedTypes.has(p.type + '_' + parsed.indexOf(p))
-            );
-            if (layoutItem) {
-              usedTypes.add(layoutItem.type + '_' + parsed.indexOf(layoutItem));
-              const x = typeof layoutItem.x === 'number' ? layoutItem.x : toNumber(original.x, W / 2);
-              const z = typeof layoutItem.z === 'number' ? layoutItem.z : toNumber(original.z, L / 2);
-              return {
-                ...original,
-                x: Math.max(0.3, Math.min(W - 0.3, x)),
-                z: Math.max(0.3, Math.min(L - 0.3, z)),
-                rotation: layoutItem.rotation ?? original.rotation ?? 0,
-                wall: layoutItem.wall ?? original.wall,
-                shape: layoutItem.shape,
-              };
-            }
-            return original;
-          });
+  const normalizedType = TYPE_MAP[original.type] ?? original.type;
+  const layoutItem = parsed.find(
+    (p) => {
+      const pNorm = TYPE_MAP[p.type] ?? p.type;
+      const key = pNorm + '_' + parsed.indexOf(p);
+      return pNorm === normalizedType && !usedTypes.has(key);
+    }
+  );
+  if (layoutItem) {
+    const key = (TYPE_MAP[layoutItem.type] ?? layoutItem.type) + '_' + parsed.indexOf(layoutItem);
+    usedTypes.add(key);
+    const x = typeof layoutItem.x === 'number' ? layoutItem.x : toNumber(original.x, W / 2);
+    const z = typeof layoutItem.z === 'number' ? layoutItem.z : toNumber(original.z, L / 2);
+    return {
+      // Сохраняем ВСЕ оригинальные поля (цвет, цена, ссылки, размеры)
+      ...original,
+      // Обновляем только позицию и ориентацию от Pixtral
+      x: Math.max(toNumber(original.width, 0.5) / 2 + 0.05, Math.min(W - toNumber(original.width, 0.5) / 2 - 0.05, x)),
+      z: Math.max(toNumber(original.depth, 0.5) / 2 + 0.05, Math.min(L - toNumber(original.depth, 0.5) / 2 - 0.05, z)),
+      rotation: layoutItem.rotation ?? original.rotation ?? 0,
+      wall: layoutItem.wall ?? original.wall,
+      shape: layoutItem.shape ?? original.shape,
+    };
+  }
+  // Pixtral не нашёл предмет — оставляем оригинал без изменений
+  return original;
+});
         }
       } catch (e) { console.error('Render layout error:', e); }
     }
