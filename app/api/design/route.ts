@@ -197,12 +197,25 @@ Return ONLY valid JSON:
             : fallback;
 
           const defaults = DEFAULT_SIZES[item.type] || { width: 1.0, depth: 1.0, height: 0.8 };
-          if (!pick) return {
-            ...item,
-            width:  typeof item.width  === 'number' ? item.width  : defaults.width,
-            depth:  typeof item.depth  === 'number' ? item.depth  : defaults.depth,
-            height: typeof item.height === 'number' ? item.height : defaults.height,
-          };
+          const pw = typeof pick.width  === 'number' ? pick.width  : defaults.width;
+const pd = typeof pick.depth  === 'number' ? pick.depth  : defaults.depth;
+const ph = typeof pick.height === 'number' ? pick.height : defaults.height;
+
+// Пересчитываем x/z чтобы мебель не вышла за стены с новыми размерами
+const clampedX = Math.max(pw/2 + 0.05, Math.min(W - pw/2 - 0.05, item.x));
+const clampedZ = Math.max(pd/2 + 0.05, Math.min(L - pd/2 - 0.05, item.z));
+
+return {
+  ...item,
+  x: clampedX, z: clampedZ, rotation: item.rotation || 0,
+  name: pick.name, color: pick.color || item.color,
+  width: pw, depth: pd, height: ph,
+  jysk_name:  pick.name,
+  jysk_price: `${pick.price} ${pick.currency}`,
+  jysk_url:   pick.url,
+  image:      pick.image,
+  subtype:    pick.subtype || pick.type,
+};
 
           return {
             ...item,
@@ -222,6 +235,42 @@ Return ONLY valid JSON:
     } catch (e) {
       console.error('Sheets error:', e);
     }
+    // ── Post-processing: раздвигаем пересекающуюся мебель ──────────────────────
+if (design.furniture) {
+  const DECOR = new Set(['curtains','painting','blanket','cushions','mirror','rug']);
+  const solid = design.furniture.filter((f: any) => !DECOR.has(f.type));
+  
+  for (let iter = 0; iter < 10; iter++) {
+    let moved = false;
+    for (let i = 0; i < solid.length; i++) {
+      for (let j = i + 1; j < solid.length; j++) {
+        const a = solid[i], b = solid[j];
+        const aw = (a.width || 1) / 2, ad = (a.depth || 0.6) / 2;
+        const bw = (b.width || 1) / 2, bd = (b.depth || 0.6) / 2;
+        const overlapX = (aw + bw + 0.1) - Math.abs(a.x - b.x);
+        const overlapZ = (ad + bd + 0.1) - Math.abs(a.z - b.z);
+        if (overlapX > 0 && overlapZ > 0) {
+          if (overlapX < overlapZ) {
+            const push = overlapX / 2;
+            if (a.x < b.x) { a.x -= push; b.x += push; }
+            else { a.x += push; b.x -= push; }
+          } else {
+            const push = overlapZ / 2;
+            if (a.z < b.z) { a.z -= push; b.z += push; }
+            else { a.z += push; b.z -= push; }
+          }
+          // Клиппинг в границы комнаты
+          a.x = Math.max((a.width||1)/2+0.05, Math.min(W-(a.width||1)/2-0.05, a.x));
+          a.z = Math.max((a.depth||0.6)/2+0.05, Math.min(L-(a.depth||0.6)/2-0.05, a.z));
+          b.x = Math.max((b.width||1)/2+0.05, Math.min(W-(b.width||1)/2-0.05, b.x));
+          b.z = Math.max((b.depth||0.6)/2+0.05, Math.min(L-(b.depth||0.6)/2-0.05, b.z));
+          moved = true;
+        }
+      }
+    }
+    if (!moved) break;
+  }
+}
     design.width    = String(W);
     design.length   = String(L);
     design.height   = String(H);
