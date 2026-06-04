@@ -340,7 +340,8 @@ for (const promptVariant of variants) {
     console.log('Pollinations status:', res.status, res.headers.get('content-type'));
 
     if (!res.ok) {
-      console.error('❌ Pollinations failed:', res.status);
+      const errText = await res.text().catch(() => 'unreadable');
+      console.error('❌ Pollinations failed:', res.status, errText.substring(0, 300));
       continue;
     }
 
