@@ -197,33 +197,24 @@ Return ONLY valid JSON:
             : fallback;
 
           const defaults = DEFAULT_SIZES[item.type] || { width: 1.0, depth: 1.0, height: 0.8 };
+          if (!pick) return {
+            ...item,
+            width:  typeof item.width  === 'number' ? item.width  : defaults.width,
+            depth:  typeof item.depth  === 'number' ? item.depth  : defaults.depth,
+            height: typeof item.height === 'number' ? item.height : defaults.height,
+          };
+
           const pw = typeof pick.width  === 'number' ? pick.width  : defaults.width;
-const pd = typeof pick.depth  === 'number' ? pick.depth  : defaults.depth;
-const ph = typeof pick.height === 'number' ? pick.height : defaults.height;
-
-// Пересчитываем x/z чтобы мебель не вышла за стены с новыми размерами
-const clampedX = Math.max(pw/2 + 0.05, Math.min(W - pw/2 - 0.05, item.x));
-const clampedZ = Math.max(pd/2 + 0.05, Math.min(L - pd/2 - 0.05, item.z));
-
-return {
-  ...item,
-  x: clampedX, z: clampedZ, rotation: item.rotation || 0,
-  name: pick.name, color: pick.color || item.color,
-  width: pw, depth: pd, height: ph,
-  jysk_name:  pick.name,
-  jysk_price: `${pick.price} ${pick.currency}`,
-  jysk_url:   pick.url,
-  image:      pick.image,
-  subtype:    pick.subtype || pick.type,
-};
+          const pd = typeof pick.depth  === 'number' ? pick.depth  : defaults.depth;
+          const ph = typeof pick.height === 'number' ? pick.height : defaults.height;
+          const clampedX = Math.max(pw/2 + 0.05, Math.min(W - pw/2 - 0.05, item.x));
+          const clampedZ = Math.max(pd/2 + 0.05, Math.min(L - pd/2 - 0.05, item.z));
 
           return {
             ...item,
-            x: item.x, z: item.z, rotation: item.rotation || 0,
+            x: clampedX, z: clampedZ, rotation: item.rotation || 0,
             name: pick.name, color: pick.color || item.color,
-            width:      typeof pick.width  === 'number' ? pick.width  : defaults.width,
-            depth:      typeof pick.depth  === 'number' ? pick.depth  : defaults.depth,
-            height:     typeof pick.height === 'number' ? pick.height : defaults.height,
+            width: pw, depth: pd, height: ph,
             jysk_name:  pick.name,
             jysk_price: `${pick.price} ${pick.currency}`,
             jysk_url:   pick.url,
