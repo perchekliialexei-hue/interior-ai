@@ -322,74 +322,43 @@ export async function POST(req: NextRequest) {
     console.log('Prompt 2 length:', variants[1].length);
 
     // ── Генерация через Cloudflare Workers AI (FLUX.1-schnell) ───────────────
-    const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID;
-    const CF_API_TOKEN  = process.env.CF_API_TOKEN;
-    const CF_URL = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell`;
-
     const images: string[] = [];
 
-    for (const promptVariant of variants) {
-      try {
-        console.log('Trying Cloudflare FLUX.1-schnell, prompt length:', promptVariant.length);
+for (const promptVariant of variants) {
+  try {
+    console.log('Trying Pollinations flux-pro, prompt length:', promptVariant.length);
 
-        const cfRes = await fetch(CF_URL, {
-          method: 'POST',
-          cache: 'no-store',
-          headers: {
-            'Authorization': `Bearer ${CF_API_TOKEN}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            prompt: promptVariant,
-            num_steps: 8,
-            negative_prompt: 'orange stains, color bleeding, artifacts, glitch, distortion, overexposed floor, paint spills, abstract floor patterns, cartoon, blurry, people, text, watermark',
-          }),
-          signal: AbortSignal.timeout(120000),
-        });
+    const encoded = encodeURIComponent(promptVariant);
+    const seed = Math.floor(Math.random() * 999999);
+    const url = `https://image.pollinations.ai/prompt/${encoded}?model=flux-pro&width=1344&height=768&seed=${seed}&nologo=true&enhance=false`;
 
-        console.log('CF status:', cfRes.status, 'Content-Type:', cfRes.headers.get('content-type'));
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(90000),
+      headers: { 'Accept': 'image/jpeg,image/*' },
+    });
 
-        if (!cfRes.ok) {
-          const errText = await cfRes.text().catch(() => 'unreadable');
-          console.error('❌ CF failed:', cfRes.status, errText.substring(0, 300));
-          continue;
-        }
+    console.log('Pollinations status:', res.status, res.headers.get('content-type'));
 
-        const contentType = cfRes.headers.get('content-type') || '';
-
-        if (contentType.startsWith('image/')) {
-          // Прямой бинарный ответ
-          const buffer = await cfRes.arrayBuffer();
-          console.log('CF buffer size:', buffer.byteLength, 'bytes');
-          if (buffer.byteLength > 10000) {
-            const base64 = Buffer.from(buffer).toString('base64');
-            images.push(`data:${contentType.split(';')[0]};base64,${base64}`);
-            console.log('✅ CF image generated:', Math.round(buffer.byteLength / 1024), 'KB');
-          } else {
-            console.error('❌ CF image too small:', buffer.byteLength);
-          }
-        } else {
-          // JSON ответ с base64 внутри
-          const json = await cfRes.json() as {
-            result?: { image?: string };
-            success?: boolean;
-            errors?: unknown[];
-          };
-          console.log('CF json keys:', Object.keys(json));
-
-          if (json.result?.image) {
-            // Cloudflare возвращает base64 строку
-            const base64 = json.result.image;
-            images.push(`data:image/jpeg;base64,${base64}`);
-            console.log('✅ CF json image, base64 length:', base64.length);
-          } else {
-            console.error('❌ CF unexpected json:', JSON.stringify(json).substring(0, 300));
-          }
-        }
-      } catch (e) {
-        console.error('❌ CF fetch error:', e instanceof Error ? e.message : String(e));
-      }
+    if (!res.ok) {
+      console.error('❌ Pollinations failed:', res.status);
+      continue;
     }
+
+    const buffer = await res.arrayBuffer();
+    console.log('Pollinations buffer:', buffer.byteLength, 'bytes');
+
+    if (buffer.byteLength > 10000) {
+      const base64 = Buffer.from(buffer).toString('base64');
+      const mime = (res.headers.get('content-type') || 'image/jpeg').split(';')[0];
+      images.push(`data:${mime};base64,${base64}`);
+      console.log('✅ Pollinations image:', Math.round(buffer.byteLength / 1024), 'KB');
+    } else {
+      console.error('❌ Pollinations image too small:', buffer.byteLength);
+    }
+  } catch (e) {
+    console.error('❌ Pollinations error:', e instanceof Error ? e.message : String(e));
+  }
+}
 
     // ── Pixtral анализирует рендер → обновляет 3D layout ────────────────────
     let renderLayout: FurnitureItem[] = [];
