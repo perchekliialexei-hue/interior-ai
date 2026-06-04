@@ -330,7 +330,7 @@ for (const promptVariant of variants) {
 
     const encoded = encodeURIComponent(promptVariant);
     const seed = Math.floor(Math.random() * 999999);
-    const url = `https://image.pollinations.ai/prompt/${encoded}?model=flux-pro&width=1344&height=768&seed=${seed}&nologo=true&enhance=false`;
+    const url = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=1344&height=768&seed=${seed}&nologo=true&enhance=false`;
 
     const res = await fetch(url, {
       signal: AbortSignal.timeout(90000),
