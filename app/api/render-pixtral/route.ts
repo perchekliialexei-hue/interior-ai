@@ -322,42 +322,57 @@ export async function POST(req: NextRequest) {
     console.log('Prompt 2 length:', variants[1].length);
 
     // ── Генерация через Cloudflare Workers AI (FLUX.1-schnell) ───────────────
-    const images: string[] = [];
+const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID;
+const CF_API_TOKEN  = process.env.CF_API_TOKEN;
+const CF_URL = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell`;
+
+const images: string[] = [];
 
 for (const promptVariant of variants) {
   try {
-    console.log('Trying Pollinations flux-pro, prompt length:', promptVariant.length);
-
-    const encoded = encodeURIComponent(promptVariant);
-    const seed = Math.floor(Math.random() * 999999);
-    const url = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=1344&height=768&seed=${seed}&nologo=true&enhance=false`;
-
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(90000),
-      headers: { 'Accept': 'image/jpeg,image/*' },
+    console.log('Trying Cloudflare FLUX.1-schnell, prompt length:', promptVariant.length);
+    const cfRes = await fetch(CF_URL, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        'Authorization': `Bearer ${CF_API_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        prompt: promptVariant,
+        num_steps: 8,
+        negative_prompt: 'orange stains, color bleeding, artifacts, glitch, distortion, overexposed floor, paint spills, abstract floor patterns, cartoon, blurry, people, text, watermark',
+      }),
+      signal: AbortSignal.timeout(120000),
     });
 
-    console.log('Pollinations status:', res.status, res.headers.get('content-type'));
+    console.log('CF status:', cfRes.status, 'Content-Type:', cfRes.headers.get('content-type'));
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => 'unreadable');
-      console.error('❌ Pollinations failed:', res.status, errText.substring(0, 300));
+    if (!cfRes.ok) {
+      const errText = await cfRes.text().catch(() => 'unreadable');
+      console.error('❌ CF failed:', cfRes.status, errText.substring(0, 300));
       continue;
     }
 
-    const buffer = await res.arrayBuffer();
-    console.log('Pollinations buffer:', buffer.byteLength, 'bytes');
-
-    if (buffer.byteLength > 10000) {
-      const base64 = Buffer.from(buffer).toString('base64');
-      const mime = (res.headers.get('content-type') || 'image/jpeg').split(';')[0];
-      images.push(`data:${mime};base64,${base64}`);
-      console.log('✅ Pollinations image:', Math.round(buffer.byteLength / 1024), 'KB');
+    const contentType = cfRes.headers.get('content-type') || '';
+    if (contentType.startsWith('image/')) {
+      const buffer = await cfRes.arrayBuffer();
+      if (buffer.byteLength > 10000) {
+        const base64 = Buffer.from(buffer).toString('base64');
+        images.push(`data:${contentType.split(';')[0]};base64,${base64}`);
+        console.log('✅ CF image:', Math.round(buffer.byteLength / 1024), 'KB');
+      }
     } else {
-      console.error('❌ Pollinations image too small:', buffer.byteLength);
+      const json = await cfRes.json() as { result?: { image?: string }; success?: boolean };
+      if (json.result?.image) {
+        images.push(`data:image/jpeg;base64,${json.result.image}`);
+        console.log('✅ CF json image, length:', json.result.image.length);
+      } else {
+        console.error('❌ CF unexpected json:', JSON.stringify(json).substring(0, 300));
+      }
     }
   } catch (e) {
-    console.error('❌ Pollinations error:', e instanceof Error ? e.message : String(e));
+    console.error('❌ CF fetch error:', e instanceof Error ? e.message : String(e));
   }
 }
 
