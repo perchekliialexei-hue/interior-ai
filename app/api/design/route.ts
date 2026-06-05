@@ -213,7 +213,7 @@ Return ONLY valid JSON:
           return {
             ...item,
             x: clampedX, z: clampedZ, rotation: item.rotation || 0,
-            name: pick.name, color: pick.color || item.color,
+            name: pick.name, color: item.color || pick.color,
             width: pw, depth: pd, height: ph,
             jysk_name:  pick.name,
             jysk_price: `${pick.price} ${pick.currency}`,
