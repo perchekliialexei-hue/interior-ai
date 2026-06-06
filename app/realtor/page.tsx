@@ -18,41 +18,6 @@ const STATS = [
   { val: '83%', label: 'агентов: staging помогает клиенту "увидеть" жильё' },
 ];
 
-const ROADMAP = [
-  {
-    phase: 'Фаза 1',
-    color: 'emerald',
-    title: 'Уже сейчас',
-    items: [
-      { icon: '🏠', text: 'Загружаешь фото объекта — получаешь 3D staging-концепт' },
-      { icon: '🛋️', text: 'Список реальной мебели JYSK с ценами и ссылками' },
-      { icon: '📐', text: 'Интерактивный 3D — клиент крутит комнату на показе' },
-      { icon: '⚡', text: 'Результат за ~2 минуты, всё на почту' },
-    ],
-  },
-  {
-    phase: 'Фаза 2',
-    color: 'violet',
-    title: 'После запуска',
-    items: [
-      { icon: '📄', text: 'PDF-презентация с рендером и списком мебели — отправляешь в Viber/WhatsApp до показа' },
-      { icon: '🔗', text: 'Кнопка "Отправить клиенту" с красивым превью в мессенджерах' },
-      { icon: '🏷️', text: 'Белый лейбл — концепты с логотипом вашего агентства' },
-      { icon: '📁', text: 'Личный кабинет с историей всех объектов' },
-    ],
-  },
-  {
-    phase: 'Фаза 3',
-    color: 'amber',
-    title: 'Рост',
-    items: [
-      { icon: '📸', text: 'Контент "до/после" для Instagram — бесплатный трафик' },
-      { icon: '🤝', text: 'Пилот с агентствами Кишинёва (Nijloc, NeoImobil)' },
-      { icon: '🛒', text: 'Официальное партнёрство с JYSK Молдова' },
-    ],
-  },
-];
-
 const inputCls = 'w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition placeholder-gray-600';
 const selectCls = 'w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition text-white';
 
