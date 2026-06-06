@@ -149,7 +149,7 @@ export default function RealtorPage() {
           <span className="hidden sm:block text-xs text-gray-500 border border-white/10 px-3 py-1.5 rounded-full">
             Для риелторов и агентств
           </span>
-          <button onClick={() => setShowForm(true)}
+          <button onClick={() => window.location.href='/realtor/order'}
             className="bg-violet-600 hover:bg-violet-500 transition px-5 py-2 rounded-full text-sm font-medium">
             Заказать staging
           </button>
