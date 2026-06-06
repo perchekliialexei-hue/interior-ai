@@ -163,7 +163,7 @@ export default function Home() {
             🏠 Для риелторов
           </a>
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => window.location.href='/order'}
             className="bg-violet-600 hover:bg-violet-500 transition px-5 py-2 rounded-full text-sm font-medium"
           >
             Заказать дизайн
@@ -186,7 +186,7 @@ export default function Home() {
             который можно покрутить и рассмотреть со всех сторон. За 48 часов.
           </p>
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => window.location.href='/order'}
             className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-500 transition px-8 py-4 rounded-full text-lg font-semibold"
           >
             Получить концепт <ArrowRight size={20} />
@@ -283,7 +283,7 @@ export default function Home() {
                 ))}
               </ul>
               <button
-                onClick={() => setShowForm(true)}
+                onClick={() => window.location.href='/order'}
                 className={`w-full py-2 rounded-full text-sm font-medium transition ${pkg.highlight ? 'bg-violet-600 hover:bg-violet-500' : 'border border-white/20 hover:border-violet-400'}`}
               >
                 Выбрать
@@ -292,6 +292,28 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+{/* FAQ */}
+<section className="max-w-3xl mx-auto px-8 py-16">
+  <h2 className="text-3xl font-bold text-center mb-10">Частые вопросы</h2>
+  <div className="space-y-3">
+    {[
+      { q: 'Как долго ждать результат?', a: 'Дизайн генерируется автоматически за 2–3 минуты прямо на сайте.' },
+      { q: 'Нужно ли фото комнаты?', a: 'Нет, фото необязательно — AI создаст дизайн по параметрам которые ты укажешь.' },
+      { q: 'Только мебель JYSK?', a: 'Сейчас да — у нас каталог 500+ товаров JYSK с реальными ценами и ссылками для Молдовы.' },
+      { q: 'Можно ли изменить результат?', a: 'Да — есть кнопка «Перегенерировать» которая создаст новый вариант с теми же параметрами.' },
+      { q: 'Как работает 3D просмотр?', a: 'После генерации можно открыть интерактивную 3D комнату прямо в браузере — крутить, приближать, смотреть со всех сторон.' },
+    ].map((item, i) => (
+      <details key={i} className="group bg-white/5 border border-white/10 rounded-2xl px-6 py-4 cursor-pointer hover:border-violet-500/30 transition">
+        <summary className="font-medium text-sm list-none flex justify-between items-center">
+          {item.q}
+          <span className="text-gray-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+        </summary>
+        <p className="text-gray-400 text-sm mt-3 leading-relaxed">{item.a}</p>
+      </details>
+    ))}
+  </div>
+</section>
 
       {/* Form modal */}
       {showForm && (
