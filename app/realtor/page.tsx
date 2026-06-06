@@ -281,69 +281,45 @@ export default function RealtorPage() {
         </div>
       </section>
 
-      {/* ── Roadmap ── */}
-      <section className="max-w-5xl mx-auto px-8 py-8 pb-20">
-        <div className="text-center mb-12">
-          <h2 className="text-2xl font-bold mb-3">Дорожная карта продукта</h2>
-          <p className="text-gray-400 text-sm max-w-lg mx-auto">
-            Уже сейчас — быстрый staging за 2 минуты. В ближайшие месяцы — инструменты которые сделают вас незаменимым агентом.
-          </p>
+      {/* ── Features ── */}
+<section className="max-w-5xl mx-auto px-8 py-8 pb-20">
+  <div className="text-center mb-12">
+    <h2 className="text-2xl font-bold mb-3">Всё что нужно риелтору — уже готово</h2>
+    <p className="text-gray-400 text-sm max-w-lg mx-auto">
+      Никакой установки, никаких подписок. Загружаешь фото — получаешь результат.
+    </p>
+  </div>
+  <div className="grid md:grid-cols-2 gap-4">
+    {[
+      { icon: '⚡', title: 'Результат за 2 минуты', desc: 'Staging-концепт готов пока клиент едет на показ. Не нужно ждать дни.' },
+      { icon: '🛋️', title: 'Реальная мебель с ценами', desc: 'Каждый предмет — из каталога JYSK с ценой и ссылкой. Клиент сразу видит бюджет.' },
+      { icon: '📐', title: 'Интерактивный 3D', desc: 'Клиент крутит комнату прямо в телефоне. Никаких приложений — просто ссылка.' },
+      { icon: '🔗', title: 'Ссылка для клиента', desc: 'Отправляешь одну ссылку в Viber — клиент открывает готовый концепт с любого устройства.' },
+      { icon: '🏠', title: 'Любой тип объекта', desc: 'Гостиная, спальня, студия, кухня-гостиная — AI подберёт расстановку под каждый тип.' },
+      { icon: '🎨', title: 'Нейтральный стиль под продажу', desc: 'Современный, скандинавский, минимализм — стили которые нравятся большинству покупателей.' },
+    ].map((f, i) => (
+      <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:border-violet-500/30 transition flex gap-4">
+        <span className="text-2xl flex-shrink-0">{f.icon}</span>
+        <div>
+          <h3 className="font-semibold text-sm mb-1">{f.title}</h3>
+          <p className="text-gray-400 text-xs leading-relaxed">{f.desc}</p>
         </div>
-        <div className="grid md:grid-cols-3 gap-6">
-          {ROADMAP.map((phase, pi) => {
-            const colors: Record<string, string> = {
-              emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-              violet:  'bg-violet-500/10  text-violet-400  border-violet-500/20',
-              amber:   'bg-amber-500/10   text-amber-400   border-amber-500/20',
-            };
-            const dotColors: Record<string, string> = {
-              emerald: 'bg-emerald-500',
-              violet:  'bg-violet-500',
-              amber:   'bg-amber-500',
-            };
-            return (
-              <motion.div
-                key={pi}
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 * pi + 0.2, duration: 0.5 }}
-                className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition"
-              >
-                <div className="flex items-center gap-2 mb-4">
-                  <span className={`text-xs font-medium px-3 py-1 rounded-full border ${colors[phase.color]}`}>
-                    {phase.phase}
-                  </span>
-                  <span className="text-sm font-semibold text-gray-300">{phase.title}</span>
-                </div>
-                <ul className="space-y-3">
-                  {phase.items.map((item, ii) => (
-                    <li key={ii} className="flex items-start gap-2.5">
-                      <span className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${dotColors[phase.color]}`} />
-                      <span className="text-xs text-gray-400 leading-relaxed">
-                        <span className="mr-1">{item.icon}</span>{item.text}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </motion.div>
-            );
-          })}
-        </div>
+      </div>
+    ))}
+  </div>
 
-        {/* Competitive advantage */}
-        <div className="mt-6 bg-violet-500/5 border border-violet-500/20 rounded-2xl p-6">
-          <div className="flex items-start gap-3">
-            <Star size={16} className="text-violet-400 mt-0.5 flex-shrink-0" />
-            <div>
-              <div className="text-sm font-semibold text-white mb-1">Уникальное преимущество перед конкурентами</div>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                REimagineHome, Collov AI и Virtual Staging AI дают красивую картинку.
-                Но <strong className="text-gray-300">никто из них не даёт список реальной мебели с ценами и ссылками для конкретного рынка</strong>.
-                Interior AI + JYSK Молдова = инструмент покупки, а не просто визуализация.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+  <div className="mt-6 bg-violet-500/5 border border-violet-500/20 rounded-2xl p-6">
+    <div className="flex items-start gap-3">
+      <Star size={16} className="text-violet-400 mt-0.5 flex-shrink-0" />
+      <div>
+        <div className="text-sm font-semibold text-white mb-1">Единственный инструмент с реальными ценами для Молдовы</div>
+        <p className="text-xs text-gray-400 leading-relaxed">
+          REimagineHome и Collov AI дают красивую картинку. Но никто из них не даёт список реальной мебели с ценами и ссылками для молдавского рынка. Interior AI + JYSK Молдова = инструмент который помогает клиенту принять решение.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
 
       {/* ── CTA Banner ── */}
       <section className="max-w-5xl mx-auto px-8 pb-20">
