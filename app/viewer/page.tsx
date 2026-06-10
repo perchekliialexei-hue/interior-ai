@@ -474,7 +474,7 @@ function addContactShadow(scene: THREE.Scene, px: number, pz: number, sw: number
     new THREE.PlaneGeometry(sw * 0.92, sd * 0.88),
     new THREE.MeshBasicMaterial({
       color: 0x000000, transparent: true, opacity: 0.18,
-      depthWrite: false, blending: THREE.MultiplyBlending,
+      depthWrite: false, blending: THREE.NormalBlending,
     })
   );
   inner.rotation.x = -Math.PI / 2;
@@ -486,7 +486,7 @@ function addContactShadow(scene: THREE.Scene, px: number, pz: number, sw: number
     new THREE.PlaneGeometry(sw * 1.15, sd * 1.10),
     new THREE.MeshBasicMaterial({
       color: 0x000000, transparent: true, opacity: 0.08,
-      depthWrite: false, blending: THREE.MultiplyBlending,
+      depthWrite: false, blending: THREE.NormalBlending,
     })
   );
   outer.rotation.x = -Math.PI / 2;
