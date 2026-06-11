@@ -104,7 +104,7 @@ export default function Result() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
-      <nav className="flex justify-between items-center px-8 py-4 border-b border-white/10">
+      <nav className="flex flex-wrap justify-between items-center px-4 sm:px-8 py-4 gap-2 border-b border-white/10">
         <a href="/" className="text-lg font-bold tracking-tight">
           Interior<span className="text-violet-400">AI</span>
         </a>
@@ -128,7 +128,7 @@ export default function Result() {
               : shareUrl ? <><Copy size={14} /> Копировать ссылку</>
               : <><Share2 size={14} /> Поделиться</>}
           </button>
-          <div className="text-right">
+          <div className="text-right hidden sm:block">
             <div className="text-sm text-violet-400 font-medium">{design?.style || 'Дизайн'}</div>
             <div className="text-xs text-gray-500">{design?.width || 4}м × {design?.length || 5}м × {design?.height || 2.7}м</div>
           </div>
@@ -141,7 +141,7 @@ export default function Result() {
           <div className="flex items-center gap-2 text-sm">
             <Check size={14} className="text-violet-400" />
             <span className="text-gray-300">Ссылка создана:</span>
-            <span className="text-violet-400 font-mono text-xs truncate max-w-xs">{shareUrl}</span>
+            <span className="text-violet-400 font-mono text-xs truncate max-w-[120px] sm:max-w-xs">{shareUrl}</span>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => copyToClipboard(shareUrl)}
@@ -156,7 +156,7 @@ export default function Result() {
         </motion.div>
       )}
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="grid lg:grid-cols-2 gap-8">
           <div>
             <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Варианты дизайна</h2>
@@ -207,7 +207,7 @@ export default function Result() {
                     target="_blank" rel="noopener noreferrer"
                     initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
                     className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3 hover:border-violet-500/40 hover:bg-violet-500/5 transition-all group">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
                       <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: item.color || '#888' }} />
                       <span className="text-sm text-gray-300 group-hover:text-white transition truncate max-w-[200px]">
                         {item.jysk_name || item.name}

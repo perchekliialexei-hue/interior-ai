@@ -1,147 +1,12 @@
 'use client';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Sparkles, Box, ShoppingBag, Check, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowRight, Sparkles, Box, ShoppingBag } from 'lucide-react';
 import { InteractiveBackground } from '@/components/interactive-background';
-// FIX 1: import InteractiveBranches from its own file (was incorrectly defined inline in JSX)
 import { InteractiveBranches } from '../src/components/interactive-branches';
 
-const STEPS = [
-  { id: 1, label: 'Анализируем фото',         sublabel: 'Mistral изучает комнату',       duration: 10 },
-  { id: 2, label: 'Создаём дизайн',           sublabel: 'Подбираем стиль и мебель',      duration: 15 },
-  { id: 3, label: 'Подбираем товары JYSK',    sublabel: 'Реальные цены и ссылки',        duration: 5  },
-  { id: 4, label: 'Оптимизируем расстановку', sublabel: 'Pixtral расставляет мебель',    duration: 20 },
-  { id: 5, label: 'Генерируем рендеры',       sublabel: 'Photorealistic 2 варианта',     duration: 90 },
-  { id: 6, label: 'Отправляем заявку',        sublabel: 'Письмо на почту',               duration: 3  },
-];
-
 export default function Home() {
-  const [showForm, setShowForm]     = useState(false);
-  const [formData, setFormData]     = useState({
-    name: '', email: '', roomType: 'Спальня', style: 'Минимализм',
-    packageType: 'Starter — $35', photos: [] as File[],
-    length: '', width: '', height: '', wishes: '',
-  });
-  const [sending, setSending]       = useState(false);
-  const [sent, setSent]             = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [controller, setController] = useState<AbortController | null>(null);
-
-  const closeModal = () => {
-    controller?.abort();
-    setShowForm(false);
-    setSent(false);
-    setSending(false);
-    setCurrentStep(0);
-    setController(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const ac = new AbortController();
-    setController(ac);
-    setSending(true);
-    setCurrentStep(1);
-
-    try {
-      let photoBase64: string | null = null;
-      if (formData.photos.length > 0) {
-        const file = formData.photos[0];
-        photoBase64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload  = () => resolve((reader.result as string).split(',')[1]);
-          reader.onerror = () => reject(new Error('FileReader failed'));
-          reader.readAsDataURL(file);
-        });
-      }
-
-      setCurrentStep(2);
-      const aiRes = await fetch('/api/design', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: ac.signal,
-        body: JSON.stringify({
-          photoBase64,
-          roomType: formData.roomType,
-          style:    formData.style,
-          width:    formData.width  || '4',
-          length:   formData.length || '5',
-          height:   formData.height || '2.7',
-          wishes:   formData.wishes,
-        }),
-      });
-
-      setCurrentStep(3);
-      await new Promise(r => setTimeout(r, 300));
-
-      const aiData = await aiRes.json();
-      const design = aiData.design ?? null;
-      if (!design) console.error('Design failed:', aiData.error);
-
-      setCurrentStep(4);
-      await new Promise(r => setTimeout(r, 300));
-
-      if (design) localStorage.setItem('roomDesign', JSON.stringify(design));
-
-      setCurrentStep(5);
-      try {
-        const renderRes = await fetch('/api/render-pixtral', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: ac.signal,
-          body: JSON.stringify({
-            roomType: formData.roomType,
-            style:    formData.style,
-            width:    formData.width  || '4',
-            length:   formData.length || '5',
-            height:   formData.height || '2.7',
-            wishes:   formData.wishes,
-            design,
-          }),
-        });
-        const renderData = await renderRes.json();
-        if (renderData.images?.length > 0) {
-          localStorage.setItem('roomRenders', JSON.stringify(renderData.images));
-        }
-        if (renderData.renderLayout && design) {
-          const updatedDesign = { ...design, furniture: renderData.renderLayout };
-          localStorage.setItem('roomDesign', JSON.stringify(updatedDesign));
-        }
-      } catch (renderError) {
-        console.error('Render error:', renderError);
-      }
-
-      setCurrentStep(6);
-      const { photos: _photos, ...orderPayload } = formData;
-      await fetch('/api/order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: ac.signal,
-        body: JSON.stringify({
-          ...orderPayload,
-          photoCount:  formData.photos.length,
-          designPlan:  design ? JSON.stringify(design, null, 2) : 'Не удалось сгенерировать',
-        }),
-      });
-
-      setSent(true);
-      setSending(false);
-      setTimeout(() => {
-        window.location.href = '/result';
-      }, 1200);
-
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name === 'AbortError') return;
-      console.error(error);
-      setSending(false);
-      setCurrentStep(0);
-    }
-  };
-
   return (
     <main className="relative min-h-screen bg-black text-white overflow-hidden">
       <InteractiveBackground />
-      {/* FIX 2: InteractiveBranches now rendered correctly as a component, not defined inline */}
       <InteractiveBranches />
 
       {/* Nav */}
@@ -209,7 +74,7 @@ export default function Home() {
               Посмотреть 3D демо
             </a>
           </div>
-          <div className="mt-10 flex items-center gap-6 text-white/50">
+          <div className="mt-10 flex items-center gap-4 sm:gap-6 text-white/50">
             <div className="flex flex-col items-center">
               <span className="font-serif text-2xl text-white">528</span>
               <span className="font-mono text-[10px] uppercase tracking-[0.2em]">товаров JYSK</span>
@@ -301,8 +166,11 @@ export default function Home() {
       </section>
 
       {/* Reviews */}
-      <section className="max-w-5xl mx-auto px-8 py-8">
-        <h2 className="text-3xl font-bold text-center mb-12">Что говорят клиенты</h2>
+      <section className="relative z-10 max-w-5xl mx-auto px-6 py-20">
+        <div className="flex flex-col items-center text-center mb-16">
+          <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#c8aa72]">Отзывы</span>
+          <h2 className="mt-4 font-serif text-3xl font-light text-white sm:text-4xl">Что говорят клиенты</h2>
+        </div>
         <div className="grid md:grid-cols-3 gap-6">
           {[
             { name: 'Анна, 24',    room: 'Спальня · Минимализм', text: 'Не могла представить как будет выглядеть комната пока не увидела 3D. Заказала мебель точно по списку — всё встало идеально!', stars: 5 },
@@ -311,10 +179,10 @@ export default function Home() {
           ].map((review, i) => (
             <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-6">
               <div className="text-yellow-400 text-sm mb-3">{'★'.repeat(review.stars)}</div>
-              <p className="text-gray-300 text-sm leading-relaxed mb-4">"{review.text}"</p>
+              <p className="text-white/70 text-sm leading-relaxed mb-4">"{review.text}"</p>
               <div>
-                <div className="font-medium text-sm">{review.name}</div>
-                <div className="text-gray-500 text-xs">{review.room}</div>
+                <div className="font-serif text-sm text-white">{review.name}</div>
+                <div className="font-mono text-[11px] text-white/40 mt-0.5">{review.room}</div>
               </div>
             </div>
           ))}
@@ -375,230 +243,6 @@ export default function Home() {
         </footer>
       </section>
 
-      {/* Form modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#111] border border-white/10 rounded-2xl p-8 max-w-lg w-full my-auto"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold">Заказать концепт</h2>
-              <button
-                onClick={closeModal}
-                className="text-gray-400 hover:text-white text-2xl leading-none"
-                aria-label={sending ? 'Отменить' : 'Закрыть'}
-              >
-                ×
-              </button>
-            </div>
-
-            <AnimatePresence>
-              {sending && (
-                <motion.div
-                  key="progress"
-                  initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                  className="mb-6 overflow-hidden"
-                >
-                  <div className="space-y-2">
-                    {STEPS.map((step) => {
-                      const isDone   = currentStep > step.id;
-                      const isActive = currentStep === step.id;
-                      return (
-                        <motion.div
-                          key={step.id}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: isActive || isDone ? 1 : 0.3, x: 0 }}
-                          className="flex items-center gap-3 py-1.5"
-                        >
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
-                            isDone   ? 'bg-violet-600' :
-                            isActive ? 'bg-violet-600/30 border border-violet-500' :
-                                       'bg-white/5 border border-white/10'
-                          }`}>
-                            {isDone   ? <Check   size={12} className="text-white" /> :
-                             isActive ? <Loader2 size={12} className="text-violet-400 animate-spin" /> :
-                                        <span className="text-white/20 text-xs">{step.id}</span>}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className={`text-sm font-medium transition-colors ${isActive ? 'text-white' : isDone ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {step.label}
-                            </div>
-                            {isActive && (
-                              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-violet-400 mt-0.5">
-                                {step.sublabel}
-                              </motion.div>
-                            )}
-                          </div>
-                          {isActive && (
-                            <div className="text-xs text-gray-500">~{step.duration}с</div>
-                          )}
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="mt-4 h-1 bg-white/5 rounded-full overflow-hidden">
-                    <motion.div
-                      className="h-full bg-violet-600 rounded-full"
-                      animate={{ width: `${(currentStep / STEPS.length) * 100}%` }}
-                      transition={{ duration: 0.5 }}
-                    />
-                  </div>
-                  <p className="text-center text-xs text-gray-500 mt-2">
-                    Это займёт около 2 минут — не закрывай вкладку
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <AnimatePresence>
-              {!sending && !sent && (
-                <motion.form
-                  key="form"
-                  onSubmit={handleSubmit}
-                  className="space-y-4"
-                  initial={{ opacity: 1 }} exit={{ opacity: 0 }}
-                >
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">Фото комнаты (до 3 фото)</label>
-                    <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-white/20 rounded-xl cursor-pointer hover:border-violet-500/50 transition">
-                      <span className="text-gray-500 mb-2">📷</span>
-                      <span className="text-sm text-gray-500">
-                        {formData.photos.length > 0 ? `${formData.photos.length} фото выбрано` : 'Нажми чтобы загрузить'}
-                      </span>
-                      <input
-                        type="file" accept="image/*" multiple className="hidden"
-                        onChange={e => setFormData({ ...formData, photos: Array.from(e.target.files || []) })}
-                      />
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">Ваше имя</label>
-                    <input
-                      type="text" required value={formData.name}
-                      onChange={e => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
-                      placeholder="Алексей"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">Email</label>
-                    <input
-                      type="email" required value={formData.email}
-                      onChange={e => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
-                      placeholder="alex@email.com"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">Тип комнаты</label>
-                    <select
-                      value={formData.roomType}
-                      onChange={e => setFormData({ ...formData, roomType: e.target.value })}
-                      className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
-                    >
-                      <option>Спальня</option>
-                      <option>Гостиная</option>
-                      <option>Кабинет / Home Office</option>
-                      <option>Gaming Room</option>
-                      <option>Кафе / Офис</option>
-                      <option>Другое</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">Стиль</label>
-                    <select
-                      value={formData.style}
-                      onChange={e => setFormData({ ...formData, style: e.target.value })}
-                      className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
-                    >
-                      <option>Минимализм</option>
-                      <option>Japandi</option>
-                      <option>Скандинавский</option>
-                      <option>Современный</option>
-                      <option>Cozy / Уютный</option>
-                      <option>Бохо</option>
-                      <option>Классический</option>
-                      <option>Средиземноморский</option>
-                      <option>Индустриальный</option>
-                      <option>Loft</option>
-                      <option>Gaming Setup</option>
-                      <option>Не знаю — помогите выбрать</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">Размеры комнаты</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {([
-                        { key: 'length', ph: 'Длина (м)' },
-                        { key: 'width',  ph: 'Ширина (м)' },
-                        { key: 'height', ph: 'Высота (м)' },
-                      ] as const).map(({ key, ph }) => (
-                        <input
-                          key={key} type="number" placeholder={ph}
-                          value={formData[key] || ''}
-                          onChange={e => setFormData({ ...formData, [key]: e.target.value })}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">Пожелания (необязательно)</label>
-                    <textarea
-                      placeholder="Например: хочу много света, нужно рабочее место, есть кот..."
-                      value={formData.wishes}
-                      onChange={e => setFormData({ ...formData, wishes: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition resize-none"
-                      rows={3}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">Пакет</label>
-                    <select
-                      value={formData.packageType}
-                      onChange={e => setFormData({ ...formData, packageType: e.target.value })}
-                      className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition"
-                    >
-                      <option>Starter — $35</option>
-                      <option>Pro — $85</option>
-                      <option>Business — $200+</option>
-                    </select>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full bg-violet-600 hover:bg-violet-500 transition py-3 rounded-full font-semibold mt-2"
-                  >
-                    Создать дизайн
-                  </button>
-                </motion.form>
-              )}
-            </AnimatePresence>
-
-            {sent && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-                className="text-center py-6"
-              >
-                <div className="w-14 h-14 bg-violet-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Check size={28} className="text-white" />
-                </div>
-                <p className="text-white font-semibold text-lg mb-1">Дизайн готов!</p>
-                <p className="text-gray-400 text-sm">Переходим к результатам...</p>
-              </motion.div>
-            )}
-          </motion.div>
-        </div>
-      )}
     </main>
   );
 }
