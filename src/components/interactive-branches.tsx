@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 export function InteractiveBranches() {
   const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const branchLeftRef = useRef<HTMLDivElement>(null);
   const branchRightRef = useRef<HTMLDivElement>(null);
@@ -15,8 +16,9 @@ export function InteractiveBranches() {
   const scrollOffsetCurrent = useRef(0);
 
   useEffect(() => {
-    setIsMobile(window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent));
-  }, []);
+  setIsMobile(window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent));
+  setMounted(true);
+}, []);
 
   useEffect(() => {
     if (isMobile) return; // не запускаем анимацию на мобильном
@@ -67,9 +69,10 @@ export function InteractiveBranches() {
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
     };
   }, [isMobile]);
-
+  
+if (!mounted) return null;
  if (isMobile) return null;
- 
+
   return (
     <div className="pointer-events-none overflow-hidden" style={{ position: 'fixed', inset: 0, zIndex: 20 }}>
 
