@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft, Check, Loader2, Upload, X } from 'lucide-react';
-import OrderBackground from '@/src/components/order-background';
 
 const STEPS = [
   { id: 1, label: 'Комната' },
@@ -41,214 +40,6 @@ const PROCESSING_STEPS = [
   { id: 4, label: 'Оптимизируем расстановку', sublabel: 'Расставляем мебель',        duration: 20 },
   { id: 5, label: 'Генерируем рендеры',       sublabel: 'Photorealistic 2 варианта', duration: 90 },
 ];
-
-/* ─── Per-step scene SVGs ─────────────────────────────────────────────── */
-
-// Step 1: dark empty room entrance — floor lines vanishing to center
-const Scene1 = () => (
-  <svg
-    className="absolute inset-0 w-full h-full"
-    viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-hidden="true"
-  >
-    {/* bg */}
-    <rect width="1440" height="900" fill="#0c0a08" />
-    {/* ceiling plane */}
-    <rect width="1440" height="260" fill="#110e0b" />
-    {/* floor plane */}
-    <rect y="640" width="1440" height="260" fill="#0e0c09" />
-    {/* back wall */}
-    <rect y="260" width="1440" height="380" fill="#141008" />
-    {/* perspective floor lines */}
-    {[0.05, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95].map((t, i) => (
-      <line
-        key={i}
-        x1={1440 * t} y1="900"
-        x2="720" y2="640"
-        stroke="#c8aa7210" strokeWidth="1"
-      />
-    ))}
-    {/* perspective ceiling lines */}
-    {[0.05, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95].map((t, i) => (
-      <line
-        key={i}
-        x1={1440 * t} y1="0"
-        x2="720" y2="260"
-        stroke="#c8aa7210" strokeWidth="1"
-      />
-    ))}
-    {/* horizon glow */}
-    <ellipse cx="720" cy="450" rx="340" ry="120" fill="#c8aa7206" />
-    {/* floor boards — horizontal */}
-    {[680, 720, 760, 800, 840, 880].map((y, i) => (
-      <line key={i} x1="0" y1={y} x2="1440" y2={y} stroke="#c8aa720a" strokeWidth="0.8" />
-    ))}
-    {/* subtle door outline far wall */}
-    <rect x="620" y="310" width="200" height="330" rx="2" fill="none" stroke="#c8aa7218" strokeWidth="1" />
-    <rect x="710" y="460" width="1" height="1" fill="none" />
-    <circle cx="630" cy="475" r="4" fill="#c8aa7222" />
-    {/* vignette */}
-    <radialGradient id="vig1" cx="50%" cy="50%" r="70%">
-      <stop offset="0%" stopColor="transparent" />
-      <stop offset="100%" stopColor="#00000088" />
-    </radialGradient>
-    <rect width="1440" height="900" fill="url(#vig1)" />
-  </svg>
-);
-
-// Step 2: warm wall texture appears — you've stepped inside
-const Scene2 = () => (
-  <svg
-    className="absolute inset-0 w-full h-full"
-    viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-hidden="true"
-  >
-    <rect width="1440" height="900" fill="#0f0d0a" />
-    {/* floor */}
-    <rect y="620" width="1440" height="280" fill="#0d0b08" />
-    {/* wall */}
-    <rect y="0" width="1440" height="620" fill="#131008" />
-    {/* wall panels / wainscoting lines */}
-    {[200, 400, 600, 800, 1000, 1200].map((x, i) => (
-      <line key={i} x1={x} y1="40" x2={x} y2="620" stroke="#c8aa7212" strokeWidth="0.8" />
-    ))}
-    <line x1="0" y1="140" x2="1440" y2="140" stroke="#c8aa7210" strokeWidth="0.8" />
-    <line x1="0" y1="520" x2="1440" y2="520" stroke="#c8aa7210" strokeWidth="0.8" />
-    {/* side window — warm light leak */}
-    <rect x="0" y="180" width="60" height="280" fill="#c8aa7218" />
-    <rect x="0" y="180" width="60" height="280">
-      <animate attributeName="opacity" values="0.6;1;0.6" dur="4s" repeatCount="indefinite" />
-    </rect>
-    {/* window light bar on floor */}
-    <polygon points="60,460 60,460 320,620 60,620" fill="#c8aa720c" />
-    {/* perspective floor lines */}
-    {[0.1, 0.3, 0.5, 0.7, 0.9].map((t, i) => (
-      <line key={i} x1={1440 * t} y1="900" x2={1440 * t} y2="620" stroke="#c8aa7209" strokeWidth="0.8" />
-    ))}
-    {/* warm glow from window */}
-    <ellipse cx="60" cy="340" rx="220" ry="180" fill="#c8aa7209" />
-    {/* vignette */}
-    <radialGradient id="vig2" cx="50%" cy="50%" r="70%">
-      <stop offset="0%" stopColor="transparent" />
-      <stop offset="100%" stopColor="#00000077" />
-    </radialGradient>
-    <rect width="1440" height="900" fill="url(#vig2)" />
-  </svg>
-);
-
-// Step 3: center of room — floor tiles, perspective depth, ceiling visible
-const Scene3 = () => (
-  <svg
-    className="absolute inset-0 w-full h-full"
-    viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-hidden="true"
-  >
-    <rect width="1440" height="900" fill="#110e0a" />
-    {/* ceiling */}
-    <rect y="0" width="1440" height="220" fill="#0f0c09" />
-    {/* walls */}
-    <rect y="220" width="1440" height="460" fill="#141108" />
-    {/* floor */}
-    <rect y="680" width="1440" height="220" fill="#0d0b07" />
-    {/* ceiling cornice */}
-    <line x1="0" y1="220" x2="1440" y2="220" stroke="#c8aa7214" strokeWidth="1" />
-    {/* floor skirting */}
-    <line x1="0" y1="680" x2="1440" y2="680" stroke="#c8aa7214" strokeWidth="1" />
-    {/* floor tile grid — perspective */}
-    {[-4,-3,-2,-1,0,1,2,3,4].map((d, i) => (
-      <line
-        key={`v${i}`}
-        x1={720 + d * 160} y1="680"
-        x2={720 + d * 60} y2="900"
-        stroke="#c8aa720d" strokeWidth="0.8"
-      />
-    ))}
-    {[0,1,2,3].map((r, i) => {
-      const y = 680 + r * 55;
-      return <line key={`h${i}`} x1="0" y1={y} x2="1440" y2={y} stroke="#c8aa720a" strokeWidth="0.8" />;
-    })}
-    {/* ceiling light fixture */}
-    <ellipse cx="720" cy="220" rx="60" ry="16" fill="#c8aa7220" />
-    <ellipse cx="720" cy="220" rx="100" ry="60" fill="#c8aa720a" />
-    {/* two windows far wall */}
-    <rect x="440" y="270" width="160" height="260" rx="2" fill="none" stroke="#c8aa7220" strokeWidth="1" />
-    <rect x="840" y="270" width="160" height="260" rx="2" fill="none" stroke="#c8aa7220" strokeWidth="1" />
-    <rect x="440" y="270" width="160" height="260" fill="#c8aa7206" />
-    <rect x="840" y="270" width="160" height="260" fill="#c8aa7206" />
-    {/* window cross-bars */}
-    <line x1="520" y1="270" x2="520" y2="530" stroke="#c8aa7214" strokeWidth="0.8" />
-    <line x1="440" y1="400" x2="600" y2="400" stroke="#c8aa7214" strokeWidth="0.8" />
-    <line x1="920" y1="270" x2="920" y2="530" stroke="#c8aa7214" strokeWidth="0.8" />
-    <line x1="840" y1="400" x2="1000" y2="400" stroke="#c8aa7214" strokeWidth="0.8" />
-    {/* vignette */}
-    <radialGradient id="vig3" cx="50%" cy="50%" r="65%">
-      <stop offset="0%" stopColor="transparent" />
-      <stop offset="100%" stopColor="#00000066" />
-    </radialGradient>
-    <rect width="1440" height="900" fill="url(#vig3)" />
-  </svg>
-);
-
-// Step 4: near the window — warm golden light, almost ready
-const Scene4 = () => (
-  <svg
-    className="absolute inset-0 w-full h-full"
-    viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-hidden="true"
-  >
-    <rect width="1440" height="900" fill="#130f09" />
-    {/* floor */}
-    <rect y="640" width="1440" height="260" fill="#0f0c07" />
-    {/* wall */}
-    <rect y="0" width="1440" height="640" fill="#161208" />
-    {/* large window — right side */}
-    <rect x="940" y="80" width="360" height="560" rx="2" fill="#c8aa7222" />
-    <rect x="940" y="80" width="360" height="560" rx="2" fill="none" stroke="#c8aa7230" strokeWidth="1.5" />
-    {/* window bars */}
-    <line x1="1120" y1="80" x2="1120" y2="640" stroke="#c8aa7228" strokeWidth="1" />
-    <line x1="940" y1="360" x2="1300" y2="360" stroke="#c8aa7228" strokeWidth="1" />
-    {/* window light cast on floor */}
-    <polygon points="940,640 1300,640 1440,900 760,900" fill="#c8aa7210" />
-    {/* window light cast on wall / left side */}
-    <polygon points="940,80 940,640 600,640 480,80" fill="#c8aa7205" />
-    {/* warm glow from window */}
-    <ellipse cx="1120" cy="360" rx="420" ry="340" fill="#c8aa720d" />
-    {/* subtle silhouette of a plant */}
-    <ellipse cx="920" cy="600" rx="38" ry="44" fill="#0d0b07" />
-    <line x1="920" y1="556" x2="920" y2="640" stroke="#0d0b07" strokeWidth="6" />
-    <ellipse cx="896" cy="572" rx="22" ry="28" fill="#0d0b07" />
-    <ellipse cx="944" cy="568" rx="20" ry="26" fill="#0d0b07" />
-    {/* floor planks */}
-    {[660, 700, 740, 780, 820, 860].map((y, i) => (
-      <line key={i} x1="0" y1={y} x2="1440" y2={y} stroke="#c8aa7209" strokeWidth="0.8" />
-    ))}
-    {/* vignette — lighter on the right to let light in */}
-    <radialGradient id="vig4" cx="80%" cy="50%" r="80%">
-      <stop offset="0%" stopColor="transparent" />
-      <stop offset="100%" stopColor="#00000060" />
-    </radialGradient>
-    <rect width="1440" height="900" fill="url(#vig4)" />
-    {/* left vignette edge */}
-    <linearGradient id="leftvig" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stopColor="#00000055" />
-      <stop offset="40%" stopColor="transparent" />
-    </linearGradient>
-    <rect width="1440" height="900" fill="url(#leftvig)" />
-  </svg>
-);
-
-const SCENES = [Scene1, Scene2, Scene3, Scene4];
-
-const STEP_BG: Record<number, { pos: string; scale: string; brightness: string }> = {
-  1: { pos: '50% 85%', scale: 'scale(1.0)',  brightness: 'brightness(0.65)' },
-  2: { pos: '50% 65%', scale: 'scale(1.08)', brightness: 'brightness(0.60)' },
-  3: { pos: '50% 40%', scale: 'scale(1.18)', brightness: 'brightness(0.55)' },
-  4: { pos: '50% 15%', scale: 'scale(1.28)', brightness: 'brightness(0.52)' },
-};
 
 export default function OrderPage() {
   const router = useRouter();
@@ -441,19 +232,13 @@ export default function OrderPage() {
   }
 
   /* ── Form ────────────────────────────────────────────────────────── */
-  const SceneBg = SCENES[step - 1];
 
-  return (
-  <div className="min-h-screen text-white relative overflow-hidden">
-
-<OrderBackground />
-
-    {/* контент поверх */}
-    <div className="relative z-10 min-h-screen flex flex-col">
+   return (
+  <div className="min-h-screen text-white flex flex-col bg-[#0f0c09]">
 
         {/* Nav */}
         <nav
-          className="flex justify-between items-center px-6 py-4"
+         className="flex justify-between items-center px-4 sm:px-6 py-4"
           style={{ borderBottom: '1px solid rgba(200,170,114,0.1)' }}
         >
           <a href="/" className="flex items-center gap-2">
@@ -478,10 +263,10 @@ export default function OrderPage() {
 
         {/* Main content */}
         <div className="flex-1 flex items-start justify-center">
-          <div className="w-full max-w-lg px-6 py-10">
+          <div className="w-full max-w-lg px-4 py-6 sm:px-6 sm:py-10">
 
             {/* Step indicators */}
-            <div className="flex gap-6 mb-10">
+            <div className="flex gap-3 sm:gap-6 mb-8 sm:mb-10">
               {STEPS.map((s) => (
                 <div
                   key={s.id}
@@ -608,11 +393,11 @@ export default function OrderPage() {
                         >
                           <span className="text-lg w-7 text-center flex-shrink-0">{s.emoji}</span>
                           <span
-                            className="text-sm font-medium flex-1"
-                            style={{ color: selected ? '#c8aa72' : 'rgba(255,255,255,0.85)' }}
-                          >
-                            {s.value}
-                          </span>
+  className="text-sm font-medium flex-1 min-w-0 truncate"
+  style={{ color: selected ? '#c8aa72' : 'rgba(255,255,255,0.85)' }}
+>
+  {s.value}
+</span>
                           <div className="flex gap-1.5 flex-shrink-0">
                             {s.palette.map((color, i) => (
                               <div
@@ -651,7 +436,7 @@ export default function OrderPage() {
                     Необязательно — но улучшает точность расстановки мебели
                   </p>
 
-                  <div className="grid grid-cols-3 gap-3 mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
                     {[
                       { key: 'length', label: 'Длина',  unit: 'м', placeholder: '5' },
                       { key: 'width',  label: 'Ширина', unit: 'м', placeholder: '4' },
@@ -933,6 +718,5 @@ export default function OrderPage() {
           </div>
         </div>
       </div>
-    </div>
   );
 }

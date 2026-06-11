@@ -17,6 +17,10 @@ export default function OrderBackground() {
   const mouseRef = useRef({ x: -999, y: -999 });
   const particlesRef = useRef<Particle[]>([]);
 
+  const isMobile = () =>
+    typeof window !== 'undefined' &&
+    (window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent));
+
   const makeParticles = useCallback((w: number, h: number) => {
     particlesRef.current = Array.from({ length: 100 }, () => {
       const x = Math.random() * w;
@@ -33,6 +37,8 @@ export default function OrderBackground() {
   }, []);
 
   useEffect(() => {
+    if (isMobile()) return; // на мобильном — ничего не запускаем
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -47,7 +53,7 @@ export default function OrderBackground() {
     const REPEL_RADIUS = 110;
     const REPEL_STRENGTH = 4;
     const FRICTION = 0.82;
-    const RETURN = 0.06; // spring back to base position
+    const RETURN = 0.06;
 
     const tick = () => {
       rafRef.current = requestAnimationFrame(tick);
@@ -63,13 +69,11 @@ export default function OrderBackground() {
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist < REPEL_RADIUS && dist > 0) {
-          // repel
           const force = (REPEL_RADIUS - dist) / REPEL_RADIUS;
           p.vx += (dx / dist) * force * REPEL_STRENGTH;
           p.vy += (dy / dist) * force * REPEL_STRENGTH;
         }
 
-        // spring back to base + friction
         p.vx += (p.baseX - p.x) * RETURN;
         p.vy += (p.baseY - p.y) * RETURN;
         p.vx *= FRICTION;
@@ -78,7 +82,6 @@ export default function OrderBackground() {
         p.x += p.vx;
         p.y += p.vy;
 
-        // glow
         const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 5);
         grad.addColorStop(0, `hsla(${p.hue}, 85%, 72%, ${p.opacity * 0.4})`);
         grad.addColorStop(1, `hsla(${p.hue}, 85%, 72%, 0)`);
@@ -87,7 +90,6 @@ export default function OrderBackground() {
         ctx.fillStyle = grad;
         ctx.fill();
 
-        // core
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * 0.7, 0, Math.PI * 2);
         ctx.fillStyle = `hsla(${p.hue}, 90%, 93%, ${p.opacity})`;
@@ -103,12 +105,15 @@ export default function OrderBackground() {
   }, [makeParticles]);
 
   useEffect(() => {
+    if (isMobile()) return;
     const onMove = (e: MouseEvent) => {
       mouseRef.current = { x: e.clientX, y: e.clientY };
     };
     window.addEventListener('mousemove', onMove);
     return () => window.removeEventListener('mousemove', onMove);
   }, []);
+
+  if (isMobile()) return null; // рендерим ничего — фон задаётся через CSS на родителе
 
   return (
     <canvas
