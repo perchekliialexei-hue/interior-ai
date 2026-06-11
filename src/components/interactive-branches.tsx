@@ -69,17 +69,35 @@ export function InteractiveBranches() {
   }, [isMobile]);
 
   if (isMobile) {
-    return (
-      <div className="pointer-events-none overflow-hidden" style={{ position: 'fixed', inset: 0, zIndex: 20 }}>
-        <div style={{ position: 'fixed', left: '-40px', top: '-30px', width: '240px', opacity: 0.50 }}>
-          <img src="/images/branches.png" alt="" style={{ width: '100%', display: 'block', filter: 'brightness(0.8)' }} />
-        </div>
-        <div style={{ position: 'fixed', right: '-40px', top: '-30px', width: '240px', opacity: 0.50 }}>
-          <img src="/images/branches.png" alt="" style={{ width: '100%', display: 'block', transform: 'scaleX(-1)', filter: 'brightness(0.8)' }} />
-        </div>
+  return (
+    <div className="pointer-events-none overflow-hidden" style={{ position: 'fixed', inset: 0, zIndex: 20 }}>
+      <style>{`
+        @keyframes swayLeft {
+          0%, 100% { transform: rotate(0deg) translateX(0px); }
+          50% { transform: rotate(2deg) translateX(4px); }
+        }
+        @keyframes swayRight {
+          0%, 100% { transform: scaleX(-1) rotate(0deg) translateX(0px); }
+          50% { transform: scaleX(-1) rotate(2deg) translateX(4px); }
+        }
+      `}</style>
+      <div style={{
+        position: 'fixed', left: '-20px', top: '-20px', width: '200px', opacity: 0.40,
+        filter: 'blur(0.5px)', transformOrigin: 'top left',
+        animation: 'swayLeft 6s ease-in-out infinite',
+      }}>
+        <img src="/images/branches.png" alt="" style={{ width: '100%', display: 'block', filter: 'brightness(0.75)' }} />
       </div>
-    );
-  }
+      <div style={{
+        position: 'fixed', right: '-20px', top: '-20px', width: '200px', opacity: 0.40,
+        filter: 'blur(0.5px)', transformOrigin: 'top right',
+        animation: 'swayRight 6s ease-in-out infinite 3s',
+      }}>
+        <img src="/images/branches.png" alt="" style={{ width: '100%', display: 'block', transform: 'scaleX(-1)', filter: 'brightness(0.75)' }} />
+      </div>
+    </div>
+  );
+}
 
   return (
     <div className="pointer-events-none overflow-hidden" style={{ position: 'fixed', inset: 0, zIndex: 20 }}>
